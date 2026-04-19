@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { TrendingUp, Plus, Building2, FileContract, CreditCard } from 'lucide-react';
+import { TrendingUp, Plus, Building2, Filetext, CreditCard } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useForm } from 'react-hook-form';
 import api from '../../api/client';
