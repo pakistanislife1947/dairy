@@ -1,38 +1,52 @@
+// src/middleware/auth.js
+// Updated for PostgreSQL ($1 placeholders) and "password" column name
+
 const jwt = require('jsonwebtoken');
 const db  = require('../config/db');
 
-/**
- * Verifies the Bearer token from the Authorization header.
- * Attaches req.user on success.
- */
+const JWT_SECRET = process.env.JWT_SECRET || null;
+
 async function authenticate(req, res, next) {
   const header = req.headers.authorization;
+
   if (!header || !header.startsWith('Bearer ')) {
     return res.status(401).json({ success: false, message: 'Authentication required.' });
   }
 
+  if (!JWT_SECRET) {
+    return res.status(500).json({ success: false, message: 'Server auth config error — JWT_SECRET not set.' });
+  }
+
   const token = header.slice(7);
+
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    // Fetch fresh user to catch deactivations
-    const [rows] = await db.query(
-      'SELECT id, name, email, role, is_active FROM users WHERE id = ?',
+    const payload = jwt.verify(token, JWT_SECRET);
+
+    // Fetch fresh user to catch deactivations mid-session
+    const user = await db.queryOne(
+      'SELECT id, name, email, role, is_active FROM users WHERE id = $1 LIMIT 1',
       [payload.id]
     );
-    if (!rows.length || !rows[0].is_active) {
+
+    if (!user || !user.is_active) {
       return res.status(401).json({ success: false, message: 'Account not found or deactivated.' });
     }
-    req.user = rows[0];
+
+    req.user = user;
     next();
+
   } catch (err) {
-    const msg = err.name === 'TokenExpiredError'
-      ? 'Session expired. Please log in again.'
-      : 'Invalid token.';
-    return res.status(401).json({ success: false, message: msg });
+    if (err.name === 'TokenExpiredError') {
+      return res.status(401).json({ success: false, message: 'Session expired. Please log in again.' });
+    }
+    if (err.name === 'JsonWebTokenError') {
+      return res.status(401).json({ success: false, message: 'Invalid token.' });
+    }
+    console.error('[auth middleware] Error:', err.message);
+    return res.status(500).json({ success: false, message: 'Authentication check failed.' });
   }
 }
 
-/** Admin-only gate. Use after authenticate. */
 function adminOnly(req, res, next) {
   if (req.user?.role !== 'admin') {
     return res.status(403).json({ success: false, message: 'Admin access required.' });
@@ -40,7 +54,6 @@ function adminOnly(req, res, next) {
   next();
 }
 
-/** Attach IP + user-agent to req for audit logging */
 function attachMeta(req, _res, next) {
   req.ip_address = req.headers['x-forwarded-for']?.split(',')[0] || req.socket?.remoteAddress;
   req.user_agent = req.headers['user-agent'];
