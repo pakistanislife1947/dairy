@@ -92,7 +92,7 @@ app.use(notFound);
 app.use(errorHandler);
 
 // Start
-const PORT = parseInt(process.env.PORT || '5000');
+const PORT = parseInt(process.env.PORT || '8080');
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🥛 Dairy ERP API  →  http://localhost:${PORT}`);
   console.log(`🌍 Env: ${process.env.NODE_ENV || 'development'}`);
