@@ -88,7 +88,7 @@ export default function App() {
           <Route path="reports"   element={<Reports />} />
           <Route path="audit"     element={<AuditLogs />} />
         </Route>
-
+        <Route path="/admin/settings" element={<Settings />} />
         {/* Staff */}
         <Route path="/staff" element={<RequireAuth><StaffLayout /></RequireAuth>}>
           <Route index         element={<StaffDashboard />} />
