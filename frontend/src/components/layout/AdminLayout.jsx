@@ -49,6 +49,8 @@ export default function AdminLayout() {
       </AnimatePresence>
 
       {/* Sidebar */}
+
+      
       <motion.aside
         animate={{ width: collapsed ? 72 : 240 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
@@ -61,6 +63,28 @@ export default function AdminLayout() {
         `}
       >
         {/* Logo */}
+
+
+        // In AdminLayout.jsx or your Sidebar component
+import { useLogo } from '../../hooks/useLogo';
+
+function Sidebar() {
+  const { logo, name } = useLogo();
+
+  return (
+    <div className="sidebar">
+      <div className="logo-area flex items-center gap-2 p-4">
+        {logo
+          ? <img src={logo} alt="Logo" className="h-8 w-8 object-contain" />
+          : <span className="text-xl">🥛</span>   // default icon
+        }
+        <span className="font-bold text-lg">{name}</span>
+      </div>
+      {/* rest of sidebar */}
+    </div>
+  );
+}
+        
         <div className="flex items-center gap-3 h-16 px-4 border-b border-border">
           <div className="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center flex-shrink-0">
             <Droplets className="w-5 h-5 text-white" />
