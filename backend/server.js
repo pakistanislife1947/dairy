@@ -116,6 +116,10 @@ app.use('/api/reports',   require('./src/routes/reports'));
 app.use('/api/audit',     require('./src/routes/audit'));
 app.use('/api/dashboard', require('./src/routes/dashboard'));
 
+const settingsRoutes = require('./src/routes/settings');
+// ... your existing routes ...
+app.use('/api/settings', settingsRoutes);
+
 // ── Health check ───────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
   res.json({
