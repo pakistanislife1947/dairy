@@ -1,6 +1,4 @@
-// src/middleware/auth.js
-// Updated for PostgreSQL ($1 placeholders) and "password" column name
-
+// backend/src/middleware/auth.js
 const jwt = require('jsonwebtoken');
 const db  = require('../config/db');
 
@@ -8,41 +6,28 @@ const JWT_SECRET = process.env.JWT_SECRET || null;
 
 async function authenticate(req, res, next) {
   const header = req.headers.authorization;
-
   if (!header || !header.startsWith('Bearer ')) {
     return res.status(401).json({ success: false, message: 'Authentication required.' });
   }
-
   if (!JWT_SECRET) {
-    return res.status(500).json({ success: false, message: 'Server auth config error — JWT_SECRET not set.' });
+    return res.status(500).json({ success: false, message: 'JWT_SECRET not configured.' });
   }
-
   const token = header.slice(7);
-
   try {
     const payload = jwt.verify(token, JWT_SECRET);
-
-    // Fetch fresh user to catch deactivations mid-session
     const user = await db.queryOne(
       'SELECT id, name, email, role, is_active FROM users WHERE id = $1 LIMIT 1',
       [payload.id]
     );
-
     if (!user || !user.is_active) {
       return res.status(401).json({ success: false, message: 'Account not found or deactivated.' });
     }
-
     req.user = user;
     next();
-
   } catch (err) {
-    if (err.name === 'TokenExpiredError') {
-      return res.status(401).json({ success: false, message: 'Session expired. Please log in again.' });
-    }
-    if (err.name === 'JsonWebTokenError') {
-      return res.status(401).json({ success: false, message: 'Invalid token.' });
-    }
-    console.error('[auth middleware] Error:', err.message);
+    if (err.name === 'TokenExpiredError') return res.status(401).json({ success: false, message: 'Session expired. Please log in again.' });
+    if (err.name === 'JsonWebTokenError')  return res.status(401).json({ success: false, message: 'Invalid token.' });
+    console.error('[auth middleware]', err.message);
     return res.status(500).json({ success: false, message: 'Authentication check failed.' });
   }
 }
@@ -54,10 +39,13 @@ function adminOnly(req, res, next) {
   next();
 }
 
+// alias so settings.js requireAdmin works
+const requireAdmin = adminOnly;
+
 function attachMeta(req, _res, next) {
   req.ip_address = req.headers['x-forwarded-for']?.split(',')[0] || req.socket?.remoteAddress;
   req.user_agent = req.headers['user-agent'];
   next();
 }
 
-module.exports = { authenticate, adminOnly, attachMeta };
+module.exports = { authenticate, adminOnly, requireAdmin, attachMeta };

@@ -3,11 +3,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import useAuthStore from './store/authStore';
 
-// Layouts
 import AdminLayout  from './components/layout/AdminLayout';
 import StaffLayout  from './components/layout/StaffLayout';
 
-// Auth pages
 import LoginPage          from './pages/auth/LoginPage';
 import RegisterPage       from './pages/auth/RegisterPage';
 import VerifyEmailPage    from './pages/auth/VerifyEmailPage';
@@ -15,24 +13,22 @@ import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import ResetPasswordPage  from './pages/auth/ResetPasswordPage';
 import OAuthCallback      from './pages/auth/OAuthCallback';
 
-// Admin pages
-import Dashboard     from './pages/admin/Dashboard';
-import Farmers       from './pages/admin/Farmers';
-import MilkAdmin     from './pages/admin/MilkAdmin';
-import Billing       from './pages/admin/Billing';
-import Sales         from './pages/admin/Sales';
-import Vehicles      from './pages/admin/Vehicles';
-import Shops         from './pages/admin/Shops';
-import HRPayroll     from './pages/admin/HRPayroll';
-import Expenses      from './pages/admin/Expenses';
-import Reports       from './pages/admin/Reports';
-import AuditLogs     from './pages/admin/AuditLogs';
+import Dashboard  from './pages/admin/Dashboard';
+import Farmers    from './pages/admin/Farmers';
+import MilkAdmin  from './pages/admin/MilkAdmin';
+import Billing    from './pages/admin/Billing';
+import Sales      from './pages/admin/Sales';
+import Vehicles   from './pages/admin/Vehicles';
+import Shops      from './pages/admin/Shops';
+import HRPayroll  from './pages/admin/HRPayroll';
+import Expenses   from './pages/admin/Expenses';
+import Reports    from './pages/admin/Reports';
+import AuditLogs  from './pages/admin/AuditLogs';
+import Settings   from './pages/admin/Settings';   // ← was missing
 
-// Staff pages
 import StaffDashboard from './pages/staff/StaffDashboard';
 import MilkEntry      from './pages/staff/MilkEntry';
 
-// Guards
 function RequireAuth({ children, adminOnly = false }) {
   const { isLoggedIn, isLoading, user } = useAuthStore();
   if (isLoading) return <PageSpinner />;
@@ -63,41 +59,40 @@ export default function App() {
           error:   { iconTheme: { primary: '#ef4444', secondary: '#1e293b' } },
         }}
       />
-
       <Routes>
         {/* Public */}
-        <Route path="/login"          element={<LoginPage />} />
-        <Route path="/register"       element={<RegisterPage />} />
-        <Route path="/verify-email"   element={<VerifyEmailPage />} />
+        <Route path="/login"           element={<LoginPage />} />
+        <Route path="/register"        element={<RegisterPage />} />
+        <Route path="/verify-email"    element={<VerifyEmailPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
-        <Route path="/oauth-callback" element={<OAuthCallback />} />
+        <Route path="/reset-password"  element={<ResetPasswordPage />} />
+        <Route path="/oauth-callback"  element={<OAuthCallback />} />
 
-        {/* Admin */}
+        {/* Admin — all under RequireAuth + AdminLayout */}
         <Route path="/admin" element={<RequireAuth adminOnly><AdminLayout /></RequireAuth>}>
-          <Route index           element={<Navigate to="dashboard" replace />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="farmers"   element={<Farmers />} />
-          <Route path="milk"      element={<MilkAdmin />} />
-          <Route path="billing"   element={<Billing />} />
-          <Route path="sales"     element={<Sales />} />
-          <Route path="vehicles"  element={<Vehicles />} />
-          <Route path="shops"     element={<Shops />} />
-          <Route path="hr"        element={<HRPayroll />} />
-          <Route path="expenses"  element={<Expenses />} />
-          <Route path="reports"   element={<Reports />} />
-          <Route path="audit"     element={<AuditLogs />} />
+          <Route index             element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard"  element={<Dashboard />} />
+          <Route path="farmers"    element={<Farmers />} />
+          <Route path="milk"       element={<MilkAdmin />} />
+          <Route path="billing"    element={<Billing />} />
+          <Route path="sales"      element={<Sales />} />
+          <Route path="vehicles"   element={<Vehicles />} />
+          <Route path="shops"      element={<Shops />} />
+          <Route path="hr"         element={<HRPayroll />} />
+          <Route path="expenses"   element={<Expenses />} />
+          <Route path="reports"    element={<Reports />} />
+          <Route path="audit"      element={<AuditLogs />} />
+          <Route path="settings"   element={<Settings />} />  {/* ← moved inside, now auth-protected */}
         </Route>
-        <Route path="/admin/settings" element={<Settings />} />
+
         {/* Staff */}
         <Route path="/staff" element={<RequireAuth><StaffLayout /></RequireAuth>}>
-          <Route index         element={<StaffDashboard />} />
-          <Route path="milk"   element={<MilkEntry />} />
+          <Route index       element={<StaffDashboard />} />
+          <Route path="milk" element={<MilkEntry />} />
         </Route>
 
-        {/* Root redirect */}
-        <Route path="/" element={<RootRedirect />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="/"  element={<RootRedirect />} />
+        <Route path="*"  element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

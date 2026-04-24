@@ -1,6 +1,4 @@
 // backend/src/config/db.js
-// Replaces mysql2 pool with pg (node-postgres) connected to Supabase
-
 const { Pool } = require('pg');
 
 if (!process.env.DATABASE_URL) {
@@ -9,70 +7,84 @@ if (!process.env.DATABASE_URL) {
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }, // required for Supabase
+  ssl: { rejectUnauthorized: false },
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
 });
 
-pool.on('error', (err) => {
-  console.error('Unexpected PostgreSQL pool error:', err.message);
-});
+pool.on('error', (err) => console.error('PG pool error:', err.message));
+pool.on('connect', () => console.log('Connected to Supabase PostgreSQL'));
 
-pool.on('connect', () => {
-  console.log('Connected to Supabase PostgreSQL');
-});
+function convertPlaceholders(sql) {
+  let i = 0;
+  return sql.replace(/\?/g, () => `$${++i}`);
+}
 
-// ─── Compatibility wrapper ───────────────────────────────────────────────────
-// The existing routes use mysql2 style:
-//   const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [id])
-//
-// This wrapper:
-//   1. Converts ? placeholders → $1, $2, $3 (PostgreSQL syntax)
-//   2. Returns [rows, fields] so existing destructuring [rows] = await db.query(...)
-//      still works without touching every route file
+function sanitizeRow(row) {
+  if (!row || typeof row !== 'object') return row;
+  const out = {};
+  for (const [k, v] of Object.entries(row)) {
+    out[k] = typeof v === 'bigint' ? Number(v) : v;
+  }
+  return out;
+}
+
+async function smartExec(executor, sql, params = []) {
+  const type = sql.trim().match(/^\s*(\w+)/)?.[1]?.toUpperCase();
+  const pgSql = convertPlaceholders(sql);
+
+  if (type === 'INSERT') {
+    const returnSql = /RETURNING/i.test(pgSql) ? pgSql : pgSql + ' RETURNING id';
+    const result = await executor(returnSql, params);
+    return [{ insertId: result.rows[0]?.id ?? null, affectedRows: result.rowCount }, result.fields];
+  }
+
+  if (type === 'UPDATE' || type === 'DELETE') {
+    const result = await executor(pgSql, params);
+    return [{ affectedRows: result.rowCount }, result.fields];
+  }
+
+  const result = await executor(pgSql, params);
+  return [result.rows.map(sanitizeRow), result.fields];
+}
 
 const db = {
-  // General SELECT / UPDATE / DELETE
   async query(sql, params = []) {
     try {
-      const pgSql = convertPlaceholders(sql);
-      const result = await pool.query(pgSql, params);
-      return [result.rows, result.fields];
+      return await smartExec((s, p) => pool.query(s, p), sql, params);
     } catch (err) {
       console.error('DB query error:', err.message, '\nSQL:', sql);
       throw err;
     }
   },
 
-  // INSERT — automatically appends RETURNING id so you get insertId back
-  // Usage: const [result] = await db.insert('INSERT INTO farmers (...) VALUES (?,...)', [...])
-  //        result.insertId gives you the new row id
-  async insert(sql, params = []) {
+  async queryOne(sql, params = []) {
     try {
-      const pgSql = convertPlaceholders(sql) + ' RETURNING id';
+      const pgSql = convertPlaceholders(sql);
       const result = await pool.query(pgSql, params);
-      return [
-        {
-          insertId: result.rows[0]?.id ?? null,
-          affectedRows: result.rowCount,
-        },
-      ];
+      return result.rows[0] ? sanitizeRow(result.rows[0]) : null;
     } catch (err) {
-      console.error('DB insert error:', err.message, '\nSQL:', sql);
+      console.error('DB queryOne error:', err.message, '\nSQL:', sql);
       throw err;
     }
   },
 
-  // Raw pg pool access for transactions / complex queries
-  pool,
-
-  // Transaction helper
   async transaction(fn) {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const result = await fn(client);
+      const conn = {
+        async query(sql, params = []) {
+          return smartExec((s, p) => client.query(s, p), sql, params);
+        },
+        async queryOne(sql, params = []) {
+          const pgSql = convertPlaceholders(sql);
+          const result = await client.query(pgSql, params);
+          return result.rows[0] ? sanitizeRow(result.rows[0]) : null;
+        },
+      };
+      const result = await fn(conn);
       await client.query('COMMIT');
       return result;
     } catch (err) {
@@ -82,12 +94,8 @@ const db = {
       client.release();
     }
   },
-};
 
-// Converts MySQL ? placeholders → PostgreSQL $1, $2, $3 ...
-function convertPlaceholders(sql) {
-  let i = 0;
-  return sql.replace(/\?/g, () => `$${++i}`);
-}
+  pool,
+};
 
 module.exports = db;

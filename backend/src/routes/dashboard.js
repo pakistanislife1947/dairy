@@ -1,6 +1,4 @@
-// ─────────────────────────────────────────────────────────────
-// dashboard.js — Admin KPI aggregates
-// ─────────────────────────────────────────────────────────────
+// backend/src/routes/dashboard.js
 const dashRouter = require('express').Router();
 const db         = require('../config/db');
 const { authenticate, adminOnly } = require('../middleware/auth');
@@ -9,11 +7,14 @@ dashRouter.use(authenticate, adminOnly);
 
 dashRouter.get('/', async (req, res, next) => {
   try {
-    const { month } = req.query; // YYYY-MM, defaults to current
-    const m = month || new Date().toISOString().slice(0, 7);
+    const { month } = req.query;
+    const m  = month || new Date().toISOString().slice(0, 7);
     const [yr, mn] = m.split('-');
+    // month start/end for range queries — avoids MySQL MONTH()/YEAR()
+    const periodStart = `${yr}-${mn}-01`;
+    const periodEnd   = new Date(parseInt(yr), parseInt(mn), 0).toISOString().slice(0,10); // last day
 
-    const [[milkStats]] = await db.query(
+    const milkStats = await db.queryOne(
       `SELECT
          COALESCE(SUM(quantity_liters),0)  AS total_liters,
          COALESCE(SUM(total_amount),0)     AS purchase_cost,
@@ -22,70 +23,68 @@ dashRouter.get('/', async (req, res, next) => {
          COUNT(DISTINCT farmer_id)         AS active_farmers,
          COUNT(*)                          AS record_count
        FROM milk_records
-       WHERE MONTH(collection_date)=? AND YEAR(collection_date)=?`,
-      [mn, yr]
+       WHERE collection_date BETWEEN $1 AND $2`,
+      [periodStart, periodEnd]
     );
 
-    const [[salesStats]] = await db.query(
+    const salesStats = await db.queryOne(
       `SELECT
          COALESCE(SUM(total_amount),0)    AS total_revenue,
          COALESCE(SUM(received_amount),0) AS received,
          COALESCE(SUM(quantity_liters),0) AS sold_liters
        FROM milk_sales
-       WHERE MONTH(sale_date)=? AND YEAR(sale_date)=?`,
-      [mn, yr]
+       WHERE sale_date BETWEEN $1 AND $2`,
+      [periodStart, periodEnd]
     );
 
-    const [[expenseStats]] = await db.query(
+    const expenseStats = await db.queryOne(
       `SELECT COALESCE(SUM(amount),0) AS total_expenses
        FROM expenses
-       WHERE MONTH(expense_date)=? AND YEAR(expense_date)=?`,
-      [mn, yr]
+       WHERE expense_date BETWEEN $1 AND $2`,
+      [periodStart, periodEnd]
     );
 
-    // Bills status count
     const [billStatus] = await db.query(
-      `SELECT status, COUNT(*) AS count, COALESCE(SUM(net_payable),0) AS amount
+      `SELECT b.status, COUNT(*) AS count, COALESCE(SUM(b.net_payable),0) AS amount
        FROM bills b
        JOIN billing_periods bp ON bp.id = b.billing_period_id
-       WHERE bp.period_month=? AND bp.period_year=?
-       GROUP BY status`,
-      [mn, yr]
+       WHERE bp.period_month = $1 AND bp.period_year = $2
+       GROUP BY b.status`,
+      [parseInt(mn), parseInt(yr)]
     );
 
-    // 6-month milk trend
+    // 6-month milk trend — TO_CHAR is PostgreSQL
     const [milkTrend] = await db.query(
-      `SELECT DATE_FORMAT(collection_date,'%Y-%m') AS month,
+      `SELECT TO_CHAR(collection_date,'YYYY-MM') AS month,
               SUM(quantity_liters) AS liters,
               SUM(total_amount)    AS cost
        FROM milk_records
-       WHERE collection_date >= DATE_SUB(LAST_DAY(CONCAT(?,'-01')), INTERVAL 5 MONTH)
-       GROUP BY DATE_FORMAT(collection_date,'%Y-%m')
+       WHERE collection_date >= ($1::date - INTERVAL '5 months')
+       GROUP BY TO_CHAR(collection_date,'YYYY-MM')
        ORDER BY month`,
-      [m]
+      [periodStart]
     );
 
-    // 6-month sales trend
     const [salesTrend] = await db.query(
-      `SELECT DATE_FORMAT(sale_date,'%Y-%m') AS month,
+      `SELECT TO_CHAR(sale_date,'YYYY-MM') AS month,
               SUM(quantity_liters) AS liters,
               SUM(total_amount)    AS revenue
        FROM milk_sales
-       WHERE sale_date >= DATE_SUB(LAST_DAY(CONCAT(?,'-01')), INTERVAL 5 MONTH)
-       GROUP BY DATE_FORMAT(sale_date,'%Y-%m')
+       WHERE sale_date >= ($1::date - INTERVAL '5 months')
+       GROUP BY TO_CHAR(sale_date,'YYYY-MM')
        ORDER BY month`,
-      [m]
+      [periodStart]
     );
 
-    // Top farmers by volume
     const [topFarmers] = await db.query(
       `SELECT f.name, f.farmer_code,
               SUM(mr.quantity_liters) AS liters,
               SUM(mr.total_amount)    AS amount
        FROM milk_records mr JOIN farmers f ON f.id = mr.farmer_id
-       WHERE MONTH(mr.collection_date)=? AND YEAR(mr.collection_date)=?
-       GROUP BY mr.farmer_id ORDER BY liters DESC LIMIT 5`,
-      [mn, yr]
+       WHERE mr.collection_date BETWEEN $1 AND $2
+       GROUP BY mr.farmer_id, f.name, f.farmer_code
+       ORDER BY liters DESC LIMIT 5`,
+      [periodStart, periodEnd]
     );
 
     const profit = parseFloat(salesStats.total_revenue) - parseFloat(milkStats.purchase_cost) - parseFloat(expenseStats.total_expenses);
@@ -94,15 +93,8 @@ dashRouter.get('/', async (req, res, next) => {
       success: true,
       data: {
         period: m,
-        kpi: {
-          ...milkStats,
-          ...salesStats,
-          ...expenseStats,
-          profit: profit.toFixed(2),
-          margin: salesStats.total_revenue > 0
-            ? ((profit / salesStats.total_revenue) * 100).toFixed(1)
-            : '0.0',
-        },
+        kpi: { ...milkStats, ...salesStats, ...expenseStats, profit: profit.toFixed(2),
+          margin: salesStats.total_revenue > 0 ? ((profit / salesStats.total_revenue) * 100).toFixed(1) : '0.0' },
         bill_status:  billStatus,
         milk_trend:   milkTrend,
         sales_trend:  salesTrend,
