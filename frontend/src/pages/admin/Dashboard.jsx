@@ -20,7 +20,7 @@ const fmtPKR = n => `Rs ${fmt(n)}`;
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-card border border-border rounded-xl px-4 py-3 text-xs space-y-1 shadow-xl">
+    <div className="bg-white border border-[#d1dce8] rounded-xl px-4 py-3 text-xs space-y-1 shadow-xl">
       <p className="text-slate-400 font-medium">{label}</p>
       {payload.map((p, i) => (
         <p key={i} style={{ color: p.color }} className="font-semibold">
@@ -136,7 +136,7 @@ export default function Dashboard() {
                   <Icon size={20} className={`text-${color}-400`} />
                   <div>
                     <p className="text-xs text-muted">{label}</p>
-                    <p className="font-bold text-slate-100">{val}</p>
+                    <p className="font-bold text-slate-800">{val}</p>
                   </div>
                 </>
             }
@@ -148,7 +148,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Milk vs Sales trend */}
         <div className="card xl:col-span-2">
-          <h3 className="font-semibold text-slate-200 mb-4">6-Month Milk Trend (Litres)</h3>
+          <h3 className="font-semibold text-slate-700 mb-4">6-Month Milk Trend (Litres)</h3>
           {loading
             ? <Skeleton className="h-52 w-full" />
             : (
@@ -179,7 +179,7 @@ export default function Dashboard() {
 
         {/* Bill status pie */}
         <div className="card">
-          <h3 className="font-semibold text-slate-200 mb-4">Bill Status</h3>
+          <h3 className="font-semibold text-slate-700 mb-4">Bill Status</h3>
           {loading
             ? <Skeleton className="h-52 w-full" />
             : expenseData.length ? (
@@ -206,7 +206,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Revenue vs Cost bar */}
         <div className="card">
-          <h3 className="font-semibold text-slate-200 mb-4">Revenue vs Purchase Cost (PKR)</h3>
+          <h3 className="font-semibold text-slate-700 mb-4">Revenue vs Purchase Cost (PKR)</h3>
           {loading
             ? <Skeleton className="h-48 w-full" />
             : (
@@ -227,7 +227,7 @@ export default function Dashboard() {
 
         {/* Top farmers */}
         <div className="card">
-          <h3 className="font-semibold text-slate-200 mb-4">Top Farmers by Volume</h3>
+          <h3 className="font-semibold text-slate-700 mb-4">Top Farmers by Volume</h3>
           {loading
             ? <div className="space-y-3">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
             : (data?.top_farmers?.length ? (
@@ -240,10 +240,10 @@ export default function Dashboard() {
                       <span className="text-xs text-muted w-4 text-right font-mono">{i + 1}</span>
                       <div className="flex-1">
                         <div className="flex justify-between text-xs mb-1">
-                          <span className="text-slate-300 font-medium">{f.name}</span>
+                          <span className="text-slate-600 font-medium">{f.name}</span>
                           <span className="text-muted font-mono">{fmt(f.liters)} L</span>
                         </div>
-                        <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                           <motion.div
                             initial={{ width: 0 }}
                             animate={{ width: `${pct}%` }}

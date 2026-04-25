@@ -50,7 +50,7 @@ export function StatCard({ title, value, sub, icon: Icon, color = 'brand', trend
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-xs text-muted font-semibold uppercase tracking-wide">{title}</p>
-        <p className="text-2xl font-bold text-slate-100 mt-0.5">{value}</p>
+        <p className="text-2xl font-bold text-slate-800 mt-0.5">{value}</p>
         {sub && <p className="text-xs text-muted mt-1">{sub}</p>}
         {trend != null && (
           <div className={`flex items-center gap-1 text-xs mt-1 ${trend >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
@@ -88,11 +88,11 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }) {
             initial={{ opacity: 0, scale: 0.96, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 12 }}
-            className={`relative w-full ${sizes[size]} bg-card border border-border rounded-2xl shadow-2xl overflow-hidden`}
+            className={`relative w-full ${sizes[size]} bg-white border border-[#d1dce8] rounded-2xl shadow-2xl overflow-hidden`}
           >
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <h2 className="font-bold text-slate-100">{title}</h2>
-              <button onClick={onClose} className="text-muted hover:text-slate-300 transition-colors">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#d1dce8]">
+              <h2 className="font-bold text-slate-800">{title}</h2>
+              <button onClick={onClose} className="text-muted hover:text-slate-600 transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -111,7 +111,7 @@ export function PageHeader({ title, subtitle, action }) {
   return (
     <div className="flex items-start justify-between mb-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-100">{title}</h1>
+        <h1 className="text-2xl font-bold text-slate-800">{title}</h1>
         {subtitle && <p className="text-sm text-muted mt-1">{subtitle}</p>}
       </div>
       {action && <div>{action}</div>}
@@ -123,10 +123,10 @@ export function PageHeader({ title, subtitle, action }) {
 export function EmptyState({ icon: Icon, title, description, action }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="w-16 h-16 rounded-2xl bg-slate-700/50 flex items-center justify-center mb-4">
+      <div className="w-16 h-16 rounded-2xl bg-slate-100/50 flex items-center justify-center mb-4">
         <Icon size={28} className="text-muted" />
       </div>
-      <h3 className="font-semibold text-slate-300 mb-1">{title}</h3>
+      <h3 className="font-semibold text-slate-600 mb-1">{title}</h3>
       <p className="text-sm text-muted max-w-xs">{description}</p>
       {action && <div className="mt-4">{action}</div>}
     </div>
@@ -161,7 +161,7 @@ export function ConfirmDialog({ isOpen, onClose, onConfirm, title, message, dang
           ${danger ? 'bg-red-500/10' : 'bg-amber-500/10'}`}>
           <AlertTriangle size={26} className={danger ? 'text-red-400' : 'text-amber-400'} />
         </div>
-        <h3 className="font-bold text-slate-100 mb-2">{title}</h3>
+        <h3 className="font-bold text-slate-800 mb-2">{title}</h3>
         <p className="text-sm text-muted mb-6">{message}</p>
         <div className="flex gap-3 justify-center">
           <button onClick={onClose} className="btn-ghost">Cancel</button>

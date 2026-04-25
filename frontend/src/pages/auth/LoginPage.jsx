@@ -35,20 +35,20 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-surface flex">
+    <div className="min-h-screen bg-[#f0f4f8] flex">
       {/* Left panel */}
-      <div className="hidden lg:flex flex-col justify-between w-1/2 bg-brand-900/30 border-r border-border p-12">
+      <div className="hidden lg:flex flex-col justify-between w-1/2 bg-brand-900/30 border-r border-[#d1dce8] p-12">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center">
             <Droplets className="w-6 h-6 text-white" />
           </div>
-          <span className="font-bold text-xl text-slate-100">Dairy ERP</span>
+          <span className="font-bold text-xl text-slate-800">Brimi Dairy</span>
         </div>
 
         <div>
-          <h2 className="text-4xl font-extrabold text-slate-100 leading-tight mb-4">
+          <h2 className="text-4xl font-extrabold text-slate-800 leading-tight mb-4">
             Manage your dairy<br />
-            <span className="text-brand-400">smarter, faster.</span>
+            <span className="text-[#1d6faa]">smarter, faster.</span>
           </h2>
           <p className="text-slate-400 text-lg max-w-sm">
             Complete farm-to-sale dairy management — milk collection, billing, payroll, and real-time analytics.
@@ -62,9 +62,9 @@ export default function LoginPage() {
             { label: 'P&L Reports',   desc: 'PDF exports monthly' },
             { label: 'Audit Trail',   desc: 'Every change tracked' },
           ].map(({ label, desc }) => (
-            <div key={label} className="bg-card/50 rounded-xl p-4 border border-border">
+            <div key={label} className="bg-white/50 rounded-xl p-4 border border-[#d1dce8]">
               <p className="font-semibold text-slate-200 text-sm">{label}</p>
-              <p className="text-xs text-muted mt-0.5">{desc}</p>
+              <p className="text-xs text-slate-500 mt-0.5">{desc}</p>
             </div>
           ))}
         </div>
@@ -82,17 +82,17 @@ export default function LoginPage() {
             <div className="w-8 h-8 rounded-xl bg-brand-600 flex items-center justify-center">
               <Droplets className="w-5 h-5 text-white" />
             </div>
-            <span className="font-bold text-slate-100">Dairy ERP</span>
+            <span className="font-bold text-slate-800">Brimi Dairy</span>
           </div>
 
-          <h1 className="text-2xl font-bold text-slate-100 mb-1">Sign in</h1>
-          <p className="text-sm text-muted mb-8">Enter your credentials to continue</p>
+          <h1 className="text-2xl font-bold text-slate-800 mb-1">Sign in</h1>
+          <p className="text-sm text-slate-500 mb-8">Enter your credentials to continue</p>
 
           {/* Google OAuth */}
           <button
             onClick={handleGoogle}
             className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl
-                       bg-slate-800 border border-border hover:border-slate-600
+                       bg-white border border-[#d1dce8] hover:border-slate-600
                        text-sm font-medium text-slate-200 transition-all mb-6"
           >
             <svg viewBox="0 0 48 48" className="w-5 h-5">
@@ -105,9 +105,9 @@ export default function LoginPage() {
           </button>
 
           <div className="flex items-center gap-3 mb-6">
-            <div className="flex-1 border-t border-border" />
-            <span className="text-xs text-muted">or email</span>
-            <div className="flex-1 border-t border-border" />
+            <div className="flex-1 border-t border-[#d1dce8]" />
+            <span className="text-xs text-slate-500">or email</span>
+            <div className="flex-1 border-t border-[#d1dce8]" />
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -129,7 +129,7 @@ export default function LoginPage() {
                   placeholder="••••••••" className="input pr-10"
                 />
                 <button type="button" onClick={() => setShowPass(s => !s)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-slate-300">
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
                   {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
@@ -139,10 +139,10 @@ export default function LoginPage() {
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer">
                 <input type="checkbox" {...register('rememberMe')}
-                  className="w-4 h-4 rounded border-border bg-slate-800 text-brand-500" />
+                  className="w-4 h-4 rounded border-[#d1dce8] bg-white text-brand-500" />
                 Remember me (30 days)
               </label>
-              <Link to="/forgot-password" className="text-xs text-brand-400 hover:text-brand-300">
+              <Link to="/forgot-password" className="text-xs text-[#1d6faa] hover:text-[#165d8f]">
                 Forgot password?
               </Link>
             </div>
@@ -155,14 +155,19 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="text-center text-sm text-muted mt-6">
+          <p className="text-center text-sm text-slate-500 mt-6">
             No account?{' '}
-            <Link to="/register" className="text-brand-400 hover:text-brand-300 font-medium">
+            <Link to="/register" className="text-[#1d6faa] hover:text-[#165d8f] font-medium">
               Register
             </Link>
           </p>
         </motion.div>
       </div>
+    
+      {/* Footer */}
+      <div className="fixed bottom-0 left-0 right-0 py-3 text-center">
+        <p className="text-xs text-slate-400">
+          Developed by <span className="font-semibold text-[#1d6faa]">Quantum Solution Group</span> &nbsp;|&nbsp; © 2025 All rights reserved
+        </p>
+      </div>
     </div>
-  );
-}

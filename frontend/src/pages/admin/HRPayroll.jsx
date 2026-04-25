@@ -59,14 +59,14 @@ export default function HRPayroll() {
       />
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-card border border-border rounded-xl p-1 w-fit">
+      <div className="flex gap-1 bg-white border border-[#d1dce8] rounded-xl p-1 w-fit">
         {[
           { id:'employees', label:'Employees', icon: Users },
           { id:'payroll',   label:'Payroll',   icon: DollarSign },
         ].map(({ id, label, icon: Icon }) => (
           <button key={id} onClick={() => setTab(id)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all
-              ${tab===id?'bg-brand-600 text-white':'text-muted hover:text-slate-300'}`}>
+              ${tab===id?'bg-brand-600 text-white':'text-muted hover:text-slate-600'}`}>
             <Icon size={15} />{label}
           </button>
         ))}
@@ -85,7 +85,7 @@ export default function HRPayroll() {
                     <motion.tr key={e.id} initial={{opacity:0}} animate={{opacity:1}} transition={{delay:i*0.04}}>
                       <td><span className="font-mono text-xs text-brand-400">{e.emp_code}</span></td>
                       <td>
-                        <div className="font-medium text-slate-200">{e.name}</div>
+                        <div className="font-medium text-slate-700">{e.name}</div>
                         <div className="text-xs text-muted">{e.phone}</div>
                       </td>
                       <td className="text-sm text-muted">{e.designation || '—'}</td>
@@ -136,7 +136,7 @@ export default function HRPayroll() {
                   ) : payroll.map((p,i) => (
                     <motion.tr key={p.id} initial={{opacity:0}} animate={{opacity:1}} transition={{delay:i*0.04}}>
                       <td>
-                        <div className="font-medium text-slate-200">{p.employee_name}</div>
+                        <div className="font-medium text-slate-700">{p.employee_name}</div>
                         <div className="text-xs text-muted font-mono">{p.emp_code}</div>
                       </td>
                       <td><span className="font-mono">{fmtPKR(p.base_salary)}</span></td>

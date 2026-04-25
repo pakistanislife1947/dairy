@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { TrendingUp, Plus, Building2, Filetext, CreditCard } from 'lucide-react';
+import { TrendingUp, Plus, Building2, FileText, CreditCard } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useForm } from 'react-hook-form';
 import api from '../../api/client';
@@ -84,11 +84,11 @@ export function Sales() {
       />
 
       {/* Tab navigation */}
-      <div className="flex gap-1 bg-card border border-border rounded-xl p-1 w-fit">
+      <div className="flex gap-1 bg-white border border-[#d1dce8] rounded-xl p-1 w-fit">
         {TABS.map(({ id, label, icon: Icon }) => (
           <button key={id} onClick={() => setTab(id)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all
-              ${tab === id ? 'bg-brand-600 text-white' : 'text-muted hover:text-slate-300'}`}>
+              ${tab === id ? 'bg-brand-600 text-white' : 'text-muted hover:text-slate-600'}`}>
             <Icon size={15} />{label}
           </button>
         ))}
@@ -107,7 +107,7 @@ export function Sales() {
                     : sales.map((s, i) => (
                       <motion.tr key={s.id} initial={{opacity:0}} animate={{opacity:1}} transition={{delay:i*0.03}}>
                         <td className="font-mono text-xs">{s.sale_date?.slice(0,10)}</td>
-                        <td><div className="font-medium text-slate-200">{s.company_name}</div><div className="text-xs text-muted">{s.contract_ref}</div></td>
+                        <td><div className="font-medium text-slate-700">{s.company_name}</div><div className="text-xs text-muted">{s.contract_ref}</div></td>
                         <td><span className="font-mono">{parseFloat(s.quantity_liters).toFixed(1)}</span></td>
                         <td><span className="font-mono text-brand-400">Rs {s.rate_per_liter}</span></td>
                         <td><span className="font-mono font-semibold">{fmtPKR(s.total_amount)}</span></td>
@@ -133,7 +133,7 @@ export function Sales() {
                     <Building2 size={18} className="text-brand-400" />
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-200">{c.name}</p>
+                    <p className="font-semibold text-slate-700">{c.name}</p>
                     <p className="text-xs text-muted mt-0.5">{c.contact_name} · {c.phone}</p>
                     <p className="text-xs text-emerald-400 mt-1">Sales: {fmtPKR(c.total_sold)}</p>
                   </div>
@@ -154,7 +154,7 @@ export function Sales() {
                 {loading ? [...Array(4)].map((_,i) => <SkeletonRow key={i} cols={6} />) :
                   contracts.map((c, i) => (
                     <motion.tr key={c.id} initial={{opacity:0}} animate={{opacity:1}} transition={{delay:i*0.03}}>
-                      <td className="font-medium text-slate-200">{c.company_name}</td>
+                      <td className="font-medium text-slate-700">{c.company_name}</td>
                       <td><span className="font-mono text-xs text-brand-400">{c.contract_ref || '—'}</span></td>
                       <td><span className="font-mono text-emerald-400 font-semibold">Rs {c.rate_per_liter}</span></td>
                       <td className="font-mono text-xs">{c.start_date?.slice(0,10)}</td>

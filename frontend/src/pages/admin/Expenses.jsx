@@ -75,7 +75,7 @@ export default function Expenses() {
           <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.06 }} className="card">
             <p className="text-xs text-muted truncate">{c.name}</p>
-            <p className="font-bold text-lg font-mono text-slate-100 mt-1">{fmtPKR(c.total_spent)}</p>
+            <p className="font-bold text-lg font-mono text-slate-800 mt-1">{fmtPKR(c.total_spent)}</p>
             <p className="text-xs text-muted">{c.entry_count} entries</p>
           </motion.div>
         ))}

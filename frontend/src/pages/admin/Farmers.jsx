@@ -110,7 +110,7 @@ export default function Farmers() {
 
       {/* Table */}
       <div className="card p-0 overflow-hidden">
-        <div className="flex items-center gap-3 p-4 border-b border-border">
+        <div className="flex items-center gap-3 p-4 border-b border-[#d1dce8]">
           <SearchInput value={search} onChange={v => { setSearch(v); setPage(1); }} placeholder="Search by name…" />
         </div>
 
@@ -146,7 +146,7 @@ export default function Farmers() {
                     >
                       <td><span className="font-mono text-xs text-brand-400">{f.farmer_code}</span></td>
                       <td>
-                        <div className="font-medium text-slate-200">{f.name}</div>
+                        <div className="font-medium text-slate-700">{f.name}</div>
                         {f.address && (
                           <div className="flex items-center gap-1 text-xs text-muted mt-0.5">
                             <MapPin size={10} />{f.address.slice(0, 30)}…
@@ -158,11 +158,11 @@ export default function Farmers() {
                           <Phone size={11} />{f.phone}
                         </div>
                       </td>
-                      <td><span className="font-mono font-semibold text-slate-200">Rs {f.base_rate}</span></td>
+                      <td><span className="font-mono font-semibold text-slate-700">Rs {f.base_rate}</span></td>
                       <td>
                         <div className="flex items-center gap-1 text-xs">
                           <Percent size={10} className="text-muted" />
-                          <span className="text-slate-300">{f.ideal_fat}F / {f.ideal_snf}S</span>
+                          <span className="text-slate-600">{f.ideal_fat}F / {f.ideal_snf}S</span>
                         </div>
                       </td>
                       <td><span className="font-mono text-emerald-400">{fmtPKR(f.total_earned)}</span></td>
@@ -186,7 +186,7 @@ export default function Farmers() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-[#d1dce8]">
             <span className="text-xs text-muted">Page {page} of {totalPages}</span>
             <div className="flex gap-2">
               <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="btn-ghost text-xs px-3 py-1.5">Prev</button>
@@ -268,7 +268,7 @@ export default function Farmers() {
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-2 border-t border-border">
+          <div className="flex justify-end gap-3 pt-2 border-t border-[#d1dce8]">
             <button type="button" onClick={() => setModalOpen(false)} className="btn-ghost">Cancel</button>
             <button type="submit" disabled={saving} className="btn-primary">
               {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : editing ? 'Update Farmer' : 'Add Farmer'}

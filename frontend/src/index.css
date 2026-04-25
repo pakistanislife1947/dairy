@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,28 +6,31 @@
 
 @layer base {
   :root {
-    --color-brand:   #0ea5e9;
-    --color-surface: #0f172a;
-    --color-card:    #1e293b;
-    --color-border:  #334155;
-    --color-muted:   #64748b;
+    --color-brand:   #1d6faa;
+    --color-surface: #f0f4f8;
+    --color-card:    #ffffff;
+    --color-border:  #d1dce8;
+    --color-muted:   #6b7a8d;
   }
 
   * { box-sizing: border-box; }
 
   body {
-    @apply bg-surface text-slate-100 font-sans antialiased;
+    background-color: #f0f4f8;
+    color: #1a2636;
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
     min-height: 100dvh;
   }
 
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { @apply bg-border rounded-full; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
 }
 
 @layer components {
   .card {
-    @apply bg-card border border-border rounded-2xl p-6;
+    @apply bg-white border border-[#d1dce8] rounded-2xl p-6 shadow-sm;
   }
 
   .btn {
@@ -36,51 +39,60 @@
   }
 
   .btn-primary {
-    @apply btn bg-brand-600 hover:bg-brand-500 text-white shadow-lg shadow-brand-900/30;
+    @apply btn bg-[#1d6faa] hover:bg-[#165d8f] text-white shadow-md;
   }
 
   .btn-ghost {
-    @apply btn bg-transparent hover:bg-slate-700/50 text-slate-300;
+    @apply btn bg-transparent hover:bg-slate-100 text-slate-600;
   }
 
   .btn-danger {
-    @apply btn bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30;
+    @apply btn bg-red-50 hover:bg-red-100 text-red-600 border border-red-200;
   }
 
   .input {
-    @apply w-full bg-slate-800 border border-border rounded-xl px-3.5 py-2.5 text-sm
-           text-slate-100 placeholder-muted
-           focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500
+    @apply w-full bg-white border border-[#d1dce8] rounded-xl px-3.5 py-2.5 text-sm
+           text-slate-800 placeholder-slate-400
+           focus:outline-none focus:ring-2 focus:ring-[#1d6faa]/30 focus:border-[#1d6faa]
            transition-all;
   }
 
   .label {
-    @apply block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5;
+    @apply block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5;
   }
 
   .badge {
     @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold;
   }
 
-  .badge-green  { @apply badge bg-emerald-500/20 text-emerald-400; }
-  .badge-yellow { @apply badge bg-amber-500/20 text-amber-400; }
-  .badge-red    { @apply badge bg-red-500/20 text-red-400; }
-  .badge-blue   { @apply badge bg-brand-500/20 text-brand-400; }
-  .badge-gray   { @apply badge bg-slate-500/20 text-slate-400; }
+  .badge-green  { @apply badge bg-emerald-100 text-emerald-700; }
+  .badge-yellow { @apply badge bg-amber-100 text-amber-700; }
+  .badge-red    { @apply badge bg-red-100 text-red-700; }
+  .badge-blue   { @apply badge bg-blue-100 text-blue-700; }
+  .badge-gray   { @apply badge bg-slate-100 text-slate-600; }
 
-  /* Skeleton */
   .skeleton {
-    @apply bg-slate-700/60 rounded-lg animate-pulse;
+    @apply bg-slate-200 rounded-lg animate-pulse;
   }
 
-  /* Table */
   .table-auto thead th {
-    @apply px-4 py-3 text-left text-xs font-semibold text-muted uppercase tracking-wide
-           border-b border-border;
+    @apply px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide
+           border-b border-[#d1dce8] bg-slate-50;
   }
+
   .table-auto tbody td {
-    @apply px-4 py-3 text-sm border-b border-border/50;
+    @apply px-4 py-3 text-sm text-slate-700 border-b border-slate-100;
   }
-  .table-auto tbody tr:hover { @apply bg-slate-700/20; }
-  .table-auto tbody tr:last-child td { @apply border-b-0; }
+
+  .table-auto tbody tr:hover {
+    @apply bg-blue-50/40;
+  }
+
+  .page-header {
+    @apply mb-6;
+  }
+
+  .page-title {
+    @apply text-2xl font-bold text-slate-800;
+  }
 }

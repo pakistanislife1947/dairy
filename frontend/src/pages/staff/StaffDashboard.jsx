@@ -29,7 +29,7 @@ export default function StaffDashboard() {
     <div className="space-y-5">
       {/* Greeting */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="pt-2">
-        <h1 className="text-xl font-bold text-slate-100">{greeting}, {user?.name?.split(' ')[0]}! 👋</h1>
+        <h1 className="text-xl font-bold text-slate-800">{greeting}, {user?.name?.split(' ')[0]}! 👋</h1>
         <p className="text-sm text-muted mt-1">{format(new Date(), 'EEEE, dd MMM yyyy')}</p>
       </motion.div>
 
@@ -58,7 +58,7 @@ export default function StaffDashboard() {
               </div>
             ) : data ? (
               <>
-                <p className="font-bold text-lg text-slate-100">{parseFloat(data.total_liters).toFixed(1)} L</p>
+                <p className="font-bold text-lg text-slate-800">{parseFloat(data.total_liters).toFixed(1)} L</p>
                 <p className="text-xs text-muted">{data.farmer_count} farmers</p>
                 <p className="text-xs font-mono text-emerald-400 mt-1">{fmtPKR(data.total_amount)}</p>
               </>
@@ -79,18 +79,18 @@ export default function StaffDashboard() {
         >
           <div className="flex items-center gap-3 mb-3">
             <Droplets size={20} className="text-brand-400" />
-            <h3 className="font-semibold text-slate-200">Today's Total</h3>
+            <h3 className="font-semibold text-slate-700">Today's Total</h3>
           </div>
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>
               <p className="text-xs text-muted mb-0.5">Litres</p>
-              <p className="font-bold text-slate-100 text-lg">
+              <p className="font-bold text-slate-800 text-lg">
                 {((parseFloat(morning?.total_liters||0) + parseFloat(evening?.total_liters||0))).toFixed(1)}
               </p>
             </div>
             <div>
               <p className="text-xs text-muted mb-0.5">Farmers</p>
-              <p className="font-bold text-slate-100 text-lg">
+              <p className="font-bold text-slate-800 text-lg">
                 {(parseInt(morning?.farmer_count||0) + parseInt(evening?.farmer_count||0))}
               </p>
             </div>

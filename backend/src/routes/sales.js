@@ -78,8 +78,7 @@ router.post('/contracts', adminOnly,
   async (req, res, next) => {
     try {
       const { company_id, contract_ref, rate_per_liter, min_quantity, start_date, end_date, notes } = req.body;
-      const [result] = await db.query(
-        `INSERT INTO sales_contracts
+      const [result] = await db.insert(`INSERT INTO sales_contracts
            (company_id, contract_ref, rate_per_liter, min_quantity, start_date, end_date, notes, created_by)
          VALUES (?,?,?,?,?,?,?,?)`,
         [company_id, contract_ref || null, rate_per_liter, min_quantity || null,
@@ -149,8 +148,7 @@ router.post('/sales',
       if (!contract) return res.status(404).json({ success: false, message: 'Active contract not found.' });
 
       const total_amount = parseFloat((quantity_liters * rate_per_liter).toFixed(2));
-      const [result] = await db.query(
-        `INSERT INTO milk_sales
+      const [result] = await db.insert(`INSERT INTO milk_sales
            (contract_id, company_id, sale_date, quantity_liters, fat_percentage, snf_percentage,
             rate_per_liter, total_amount, payment_status, received_amount, notes, recorded_by)
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,

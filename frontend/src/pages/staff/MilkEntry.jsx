@@ -109,7 +109,7 @@ export default function MilkEntry() {
     <div className="space-y-5 pb-8">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-bold text-slate-100">Milk Entry</h1>
+        <h1 className="text-xl font-bold text-slate-800">Milk Entry</h1>
         <p className="text-sm text-muted mt-0.5">{format(new Date(), 'EEEE, dd MMM yyyy')}</p>
       </div>
 
@@ -148,7 +148,7 @@ export default function MilkEntry() {
                   ? s === 'morning'
                     ? 'bg-amber-500/20 border-amber-500 text-amber-300'
                     : 'bg-brand-500/20 border-brand-500 text-brand-300'
-                  : 'bg-card border-border text-muted'
+                  : 'bg-white border-[#d1dce8] text-muted'
                 }`}
             >
               {s === 'morning' ? <Sun size={18} /> : <Moon size={18} />}
@@ -196,11 +196,11 @@ export default function MilkEntry() {
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
-              className="mt-2 px-3 py-2 rounded-xl bg-slate-800 border border-border text-xs text-muted flex gap-4"
+              className="mt-2 px-3 py-2 rounded-xl bg-white border border-[#d1dce8] text-xs text-muted flex gap-4"
             >
-              <span>Base: <strong className="text-slate-300">Rs {selectedFarmer.base_rate}/L</strong></span>
-              <span>FAT ideal: <strong className="text-slate-300">{selectedFarmer.ideal_fat}%</strong></span>
-              <span>SNF ideal: <strong className="text-slate-300">{selectedFarmer.ideal_snf}%</strong></span>
+              <span>Base: <strong className="text-slate-600">Rs {selectedFarmer.base_rate}/L</strong></span>
+              <span>FAT ideal: <strong className="text-slate-600">{selectedFarmer.ideal_fat}%</strong></span>
+              <span>SNF ideal: <strong className="text-slate-600">{selectedFarmer.ideal_snf}%</strong></span>
             </motion.div>
           )}
         </div>
@@ -334,7 +334,7 @@ export default function MilkEntry() {
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.04 }}
-                className="flex items-center justify-between px-4 py-3 rounded-xl bg-card border border-border"
+                className="flex items-center justify-between px-4 py-3 rounded-xl bg-white border border-[#d1dce8]"
               >
                 <div className="flex items-center gap-3">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center
@@ -342,7 +342,7 @@ export default function MilkEntry() {
                     {r.shift === 'morning' ? <Sun size={14} className="text-amber-400" /> : <Moon size={14} className="text-slate-400" />}
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-200">{r.farmer_name}</p>
+                    <p className="text-sm font-semibold text-slate-700">{r.farmer_name}</p>
                     <p className="text-xs text-muted font-mono">
                       {parseFloat(r.quantity_liters).toFixed(1)}L · {parseFloat(r.fat_percentage).toFixed(1)}% FAT
                     </p>

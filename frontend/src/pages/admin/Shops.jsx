@@ -76,7 +76,7 @@ export default function Shops() {
                       <Store size={18} className={s.ownership_type === 'owned' ? 'text-emerald-400' : 'text-amber-400'} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-slate-200 truncate">{s.shop_name}</p>
+                      <p className="font-semibold text-slate-700 truncate">{s.shop_name}</p>
                       {s.location && (
                         <p className="text-xs text-muted mt-0.5 flex items-center gap-1">
                           <MapPin size={10} /> {s.location}
@@ -95,8 +95,8 @@ export default function Shops() {
                   </div>
 
                   {s.ownership_type === 'rented' && (
-                    <div className="text-xs text-muted space-y-0.5 pt-1 border-t border-border">
-                      <p>Owner: <span className="text-slate-300">{s.owner_name || '—'}</span></p>
+                    <div className="text-xs text-muted space-y-0.5 pt-1 border-t border-[#d1dce8]">
+                      <p>Owner: <span className="text-slate-600">{s.owner_name || '—'}</span></p>
                       <p>Total paid: <span className="text-emerald-400 font-mono">{fmtPKR(s.total_rent_paid)}</span></p>
                     </div>
                   )}

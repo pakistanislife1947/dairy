@@ -69,8 +69,8 @@ export default function Vehicles() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Vehicles list */}
         <div className="card p-0 overflow-hidden">
-          <div className="px-4 py-3 border-b border-border">
-            <h3 className="font-semibold text-slate-200 text-sm">Fleet ({vehicles.length})</h3>
+          <div className="px-4 py-3 border-b border-[#d1dce8]">
+            <h3 className="font-semibold text-slate-700 text-sm">Fleet ({vehicles.length})</h3>
           </div>
           {loading
             ? <div className="p-4 space-y-3">{[...Array(4)].map((_, i) => <div key={i} className="skeleton h-16 rounded-xl" />)}</div>
@@ -80,7 +80,7 @@ export default function Vehicles() {
                 <div className="divide-y divide-border">
                   {vehicles.map(v => (
                     <button key={v.id} onClick={() => loadExpenses(v)}
-                      className={`w-full text-left px-4 py-3 hover:bg-slate-700/30 transition-colors
+                      className={`w-full text-left px-4 py-3 hover:bg-slate-100/30 transition-colors
                         ${selVehicle?.id === v.id ? 'bg-brand-500/10 border-l-2 border-brand-500' : ''}`}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -89,7 +89,7 @@ export default function Vehicles() {
                             <Truck size={15} className={v.ownership_type === 'owned' ? 'text-brand-400' : 'text-amber-400'} />
                           </div>
                           <div>
-                            <p className="font-semibold text-slate-200 text-sm">{v.reg_number}</p>
+                            <p className="font-semibold text-slate-700 text-sm">{v.reg_number}</p>
                             <p className="text-xs text-muted">{v.make_model || '—'} · {v.ownership_type}</p>
                           </div>
                         </div>
@@ -111,7 +111,7 @@ export default function Vehicles() {
             <>
               <div className="card flex items-center justify-between">
                 <div>
-                  <h3 className="font-bold text-slate-100">{selVehicle.reg_number}</h3>
+                  <h3 className="font-bold text-slate-800">{selVehicle.reg_number}</h3>
                   <p className="text-xs text-muted">{selVehicle.make_model}</p>
                 </div>
                 <button onClick={() => { reset({}); setModal('expense'); }} className="btn-primary text-xs py-1.5 px-3">

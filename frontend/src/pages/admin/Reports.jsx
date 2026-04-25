@@ -162,7 +162,7 @@ export default function Reports() {
           {loading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><BarChart3 size={16} />Generate Report</>}
         </button>
         {data && (
-          <button onClick={generatePDF} className="btn-ghost border border-border">
+          <button onClick={generatePDF} className="btn-ghost border border-[#d1dce8]">
             <Download size={16} /> Export PDF
           </button>
         )}
@@ -202,7 +202,7 @@ export default function Reports() {
                 : <TrendingDown size={28} className="text-red-400" />
               }
               <div>
-                <p className="font-bold text-slate-100">
+                <p className="font-bold text-slate-800">
                   Net Margin: <span className={parseFloat(s.net_profit) >= 0 ? 'text-emerald-400' : 'text-red-400'}>{s.margin_pct}%</span>
                 </p>
                 <p className="text-sm text-muted">
@@ -216,7 +216,7 @@ export default function Reports() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Expense breakdown bar */}
             <div className="card">
-              <h3 className="font-semibold text-slate-200 mb-4">Expense Breakdown</h3>
+              <h3 className="font-semibold text-slate-700 mb-4">Expense Breakdown</h3>
               {expenseChartData.length ? (
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={expenseChartData} layout="vertical" margin={{ left: 8, right: 16 }}>
@@ -236,8 +236,8 @@ export default function Reports() {
 
             {/* Farmer breakdown table */}
             <div className="card p-0 overflow-hidden">
-              <div className="px-4 py-3 border-b border-border">
-                <h3 className="font-semibold text-slate-200 text-sm">Farmer-wise Purchase</h3>
+              <div className="px-4 py-3 border-b border-[#d1dce8]">
+                <h3 className="font-semibold text-slate-700 text-sm">Farmer-wise Purchase</h3>
               </div>
               <div className="overflow-y-auto max-h-60">
                 <table className="table-auto w-full">
@@ -246,7 +246,7 @@ export default function Reports() {
                     {data.farmer_breakdown.map((f, i) => (
                       <tr key={i}>
                         <td>
-                          <div className="font-medium text-slate-200 text-sm">{f.name}</div>
+                          <div className="font-medium text-slate-700 text-sm">{f.name}</div>
                           <div className="text-xs text-muted font-mono">{f.farmer_code}</div>
                         </td>
                         <td><span className="font-mono text-sm">{parseFloat(f.liters).toFixed(1)}</span></td>

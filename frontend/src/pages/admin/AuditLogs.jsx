@@ -83,7 +83,7 @@ export default function AuditLogs() {
                         {new Date(l.created_at).toLocaleString('en-PK', { dateStyle:'short', timeStyle:'short' })}
                       </td>
                       <td>
-                        <div className="text-sm text-slate-300 font-medium">{l.user_name || 'System/Trigger'}</div>
+                        <div className="text-sm text-slate-600 font-medium">{l.user_name || 'System/Trigger'}</div>
                         <div className="text-xs text-muted">{l.user_email}</div>
                       </td>
                       <td>
@@ -96,10 +96,10 @@ export default function AuditLogs() {
                       <td>
                         {(l.new_values || l.old_values) && (
                           <details className="text-xs">
-                            <summary className="text-muted cursor-pointer hover:text-slate-300 select-none">
+                            <summary className="text-muted cursor-pointer hover:text-slate-600 select-none">
                               View diff
                             </summary>
-                            <pre className="mt-1 text-slate-400 text-xs max-w-xs overflow-auto bg-slate-800/80 rounded-lg p-2 border border-border">
+                            <pre className="mt-1 text-slate-400 text-xs max-w-xs overflow-auto bg-white/80 rounded-lg p-2 border border-[#d1dce8]">
                               {JSON.stringify(
                                 JSON.parse(l.new_values || l.old_values || '{}'),
                                 null, 2
@@ -117,7 +117,7 @@ export default function AuditLogs() {
 
         {/* Pagination */}
         {Math.ceil(total / 50) > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-[#d1dce8]">
             <span className="text-xs text-muted">Page {page} of {Math.ceil(total / 50)}</span>
             <div className="flex gap-2">
               <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="btn-ghost text-xs px-3 py-1.5">Prev</button>

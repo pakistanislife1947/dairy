@@ -152,7 +152,7 @@ export default function MilkAdmin() {
                     <motion.tr key={r.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }}>
                       <td className="font-mono text-xs">{r.collection_date?.slice(0,10)}</td>
                       <td>
-                        <div className="font-medium text-slate-200 text-sm">{r.farmer_name}</div>
+                        <div className="font-medium text-slate-700 text-sm">{r.farmer_name}</div>
                         <div className="text-xs text-muted font-mono">{r.farmer_code}</div>
                       </td>
                       <td>
@@ -180,7 +180,7 @@ export default function MilkAdmin() {
         </div>
 
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-[#d1dce8]">
             <span className="text-xs text-muted">Page {page} of {totalPages} · {total} records</span>
             <div className="flex gap-2">
               <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="btn-ghost text-xs px-3 py-1.5">Prev</button>
@@ -250,7 +250,7 @@ export default function MilkAdmin() {
             </motion.div>
           )}
 
-          <div className="flex justify-end gap-3 pt-2 border-t border-border">
+          <div className="flex justify-end gap-3 pt-2 border-t border-[#d1dce8]">
             <button type="button" onClick={() => setModal(false)} className="btn-ghost">Cancel</button>
             <button type="submit" disabled={saving} className="btn-primary">
               {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Save Record'}

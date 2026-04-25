@@ -101,8 +101,8 @@ export default function Billing() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Periods list */}
         <div className="card p-0 overflow-hidden lg:col-span-1">
-          <div className="px-4 py-3 border-b border-border">
-            <h3 className="font-semibold text-slate-200 text-sm">Billing Periods</h3>
+          <div className="px-4 py-3 border-b border-[#d1dce8]">
+            <h3 className="font-semibold text-slate-700 text-sm">Billing Periods</h3>
           </div>
           {loadPeriods
             ? <div className="p-4 space-y-2">{[...Array(4)].map((_,i) => <div key={i} className="skeleton h-14 w-full rounded-xl" />)}</div>
@@ -114,12 +114,12 @@ export default function Billing() {
                     <button
                       key={p.id}
                       onClick={() => selectPeriod(p)}
-                      className={`w-full text-left px-4 py-3 hover:bg-slate-700/30 transition-colors
+                      className={`w-full text-left px-4 py-3 hover:bg-slate-100/30 transition-colors
                         ${selPeriod?.id === p.id ? 'bg-brand-500/10 border-l-2 border-brand-500' : ''}`}
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="font-semibold text-slate-200 text-sm">
+                          <p className="font-semibold text-slate-700 text-sm">
                             {MONTHS[p.period_month]} {p.period_year}
                           </p>
                           <p className="text-xs text-muted mt-0.5">{p.bill_count} bills · {fmtPKR(p.total_payable)}</p>
@@ -142,7 +142,7 @@ export default function Billing() {
             <>
               <div className="card flex items-center justify-between">
                 <div>
-                  <h3 className="font-bold text-slate-100">
+                  <h3 className="font-bold text-slate-800">
                     {MONTHS[selPeriod.period_month]} {selPeriod.period_year}
                   </h3>
                   <p className="text-sm text-muted mt-0.5">
@@ -194,7 +194,7 @@ export default function Billing() {
                               <motion.tr key={b.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}>
                                 <td><span className="font-mono text-xs text-brand-400">{b.bill_number}</span></td>
                                 <td>
-                                  <div className="font-medium text-slate-200 text-sm">{b.farmer_name}</div>
+                                  <div className="font-medium text-slate-700 text-sm">{b.farmer_name}</div>
                                   <div className="text-xs text-muted">{b.farmer_code}</div>
                                 </td>
                                 <td><span className="font-mono">{parseFloat(b.total_liters).toFixed(1)} L</span></td>
