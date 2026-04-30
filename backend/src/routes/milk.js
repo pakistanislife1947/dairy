@@ -49,7 +49,8 @@ router.get('/', async (req, res, next) => {
     if (date_from) { cSql += ' AND mr.collection_date >= ?'; cParams.push(date_from); }
     if (date_to)   { cSql += ' AND mr.collection_date <= ?'; cParams.push(date_to); }
     if (shift)     { cSql += ' AND mr.shift = ?'; cParams.push(shift); }
-    const [[{ total }]] = await db.query(cSql, cParams);
+    const [_totalRows] = await db.query(cSql, cParams);
+      const total = _totalRows[0]?.total ?? 0;
 
     res.json({ success: true, data: rows, pagination: { page: +page, limit: +limit, total } });
   } catch (err) { next(err); }
@@ -81,7 +82,7 @@ router.post('/preview-rate', authenticate, async (req, res, next) => {
   try {
     const { farmer_id, fat_percentage, snf_percentage, quantity_liters } = req.body;
     const [farmers] = await db.query(
-      'SELECT base_rate, ideal_fat, ideal_snf, fat_correction, snf_correction FROM farmers WHERE id = ? AND is_active = 1',
+      'SELECT base_rate, ideal_fat, ideal_snf, fat_correction, snf_correction FROM farmers WHERE id = ? AND is_active = TRUE',
       [farmer_id]
     );
     if (!farmers.length) return res.status(404).json({ success: false, message: 'Farmer not found.' });
@@ -132,7 +133,7 @@ router.post('/', rules, validate, async (req, res, next) => {
 
     // Fetch farmer pricing config
     const [farmers] = await db.query(
-      'SELECT base_rate, ideal_fat, ideal_snf, fat_correction, snf_correction FROM farmers WHERE id = ? AND is_active = 1',
+      'SELECT base_rate, ideal_fat, ideal_snf, fat_correction, snf_correction FROM farmers WHERE id = ? AND is_active = TRUE',
       [farmer_id]
     );
     if (!farmers.length) return res.status(404).json({ success: false, message: 'Farmer not found or inactive.' });
@@ -149,8 +150,7 @@ router.post('/', rules, validate, async (req, res, next) => {
     });
     const total_amount = computeAmount(quantity_liters, computed_rate);
 
-    const [result] = await db.query(
-      `INSERT INTO milk_records
+    const [result] = await db.insert(`INSERT INTO milk_records
          (farmer_id, collection_date, shift, quantity_liters, fat_percentage, snf_percentage,
           base_rate, fat_correction, snf_correction, computed_rate, total_amount, notes, recorded_by)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
