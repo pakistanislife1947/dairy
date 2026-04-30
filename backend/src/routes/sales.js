@@ -16,7 +16,7 @@ router.get('/companies', async (_req, res, next) => {
          COALESCE(SUM(ms.total_amount),0) AS total_sold
        FROM companies c
        LEFT JOIN milk_sales ms ON ms.company_id = c.id
-       WHERE c.is_active = 1
+       WHERE c.is_active = TRUE
        GROUP BY c.id ORDER BY c.name`
     );
     res.json({ success: true, data: rows });
