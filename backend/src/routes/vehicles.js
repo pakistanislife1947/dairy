@@ -15,7 +15,7 @@ router.get('/', async (_req, res, next) => {
          COUNT(ve.id)               AS expense_count
        FROM vehicles v
        LEFT JOIN vehicle_expenses ve ON ve.vehicle_id = v.id
-       WHERE v.is_active = 1
+       WHERE v.is_active = TRUE
        GROUP BY v.id ORDER BY v.reg_number`
     );
     res.json({ success: true, data: rows });
@@ -31,13 +31,12 @@ router.post('/', adminOnly,
   async (req, res, next) => {
     try {
       const { reg_number, make_model, ownership_type, owner_name, owner_phone, monthly_rent, notes } = req.body;
-      const [result] = await db.query(
-        `INSERT INTO vehicles (reg_number, make_model, ownership_type, owner_name, owner_phone, monthly_rent, notes, created_by)
-         VALUES (?,?,?,?,?,?,?,?)`,
+      const [result] = await db.insert(`INSERT INTO vehicles (reg_number, make_model, ownership_type, owner_name, owner_phone, monthly_rent, capacity_liters, notes, created_by)
+         VALUES (?,?,?,?,?,?,?,?,?)`,
         [reg_number, make_model || null, ownership_type,
          owner_name || null, owner_phone || null,
          ownership_type === 'rented' ? (monthly_rent || null) : null,
-         notes || null, req.user.id]
+         req.body.capacity_liters || null, notes || null, req.user.id]
       );
       res.status(201).json({ success: true, message: 'Vehicle added.', data: { id: result.insertId } });
     } catch (err) { next(err); }
@@ -49,9 +48,9 @@ router.put('/:id', adminOnly, async (req, res, next) => {
     const { reg_number, make_model, ownership_type, owner_name, owner_phone, monthly_rent, notes } = req.body;
     await db.query(
       `UPDATE vehicles SET reg_number=?, make_model=?, ownership_type=?,
-         owner_name=?, owner_phone=?, monthly_rent=?, notes=? WHERE id=?`,
+         owner_name=?, owner_phone=?, monthly_rent=?, capacity_liters=?, notes=? WHERE id=?`,
       [reg_number, make_model || null, ownership_type, owner_name || null,
-       owner_phone || null, monthly_rent || null, notes || null, req.params.id]
+       owner_phone || null, monthly_rent || null, req.body.capacity_liters || null, notes || null, req.params.id]
     );
     res.json({ success: true, message: 'Vehicle updated.' });
   } catch (err) { next(err); }
@@ -59,7 +58,7 @@ router.put('/:id', adminOnly, async (req, res, next) => {
 
 router.patch('/:id/deactivate', adminOnly, async (req, res, next) => {
   try {
-    await db.query('UPDATE vehicles SET is_active = 0 WHERE id = ?', [req.params.id]);
+    await db.query('UPDATE vehicles SET is_active = FALSE WHERE id = ?', [req.params.id]);
     res.json({ success: true, message: 'Vehicle deactivated.' });
   } catch (err) { next(err); }
 });
@@ -88,8 +87,7 @@ router.post('/:id/expenses',
   async (req, res, next) => {
     try {
       const { expense_date, expense_type, amount, odometer_km, notes } = req.body;
-      const [result] = await db.query(
-        `INSERT INTO vehicle_expenses (vehicle_id, expense_date, expense_type, amount, odometer_km, notes, recorded_by)
+      const [result] = await db.insert(`INSERT INTO vehicle_expenses (vehicle_id, expense_date, expense_type, amount, odometer_km, notes, recorded_by)
          VALUES (?,?,?,?,?,?,?)`,
         [req.params.id, expense_date, expense_type, amount, odometer_km || null, notes || null, req.user.id]
       );

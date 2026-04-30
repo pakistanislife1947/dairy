@@ -18,6 +18,19 @@ expRouter.get('/categories', async (_req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET shops for rent auto-fill
+expRouter.get('/rent-refs', authenticate, async (_req, res, next) => {
+  try {
+    const [shops] = await db.query(
+      `SELECT id, shop_name AS name, monthly_rent AS amount, 'shop' AS type FROM shops WHERE is_active = TRUE`
+    );
+    const [vehicles] = await db.query(
+      `SELECT id, reg_number AS name, monthly_rent AS amount, 'vehicle' AS type FROM vehicles WHERE is_active = TRUE AND ownership_type = 'rented'`
+    );
+    res.json({ success: true, data: [...shops, ...vehicles] });
+  } catch (err) { next(err); }
+});
+
 expRouter.get('/', async (req, res, next) => {
   try {
     const { category_id, date_from, date_to, page = 1, limit = 50 } = req.query;
@@ -45,10 +58,10 @@ expRouter.post('/',
   validate,
   async (req, res, next) => {
     try {
-      const { category_id, expense_date, amount, description } = req.body;
-      const [result] = await db.query(
-        'INSERT INTO expenses (category_id,expense_date,amount,description,created_by) VALUES (?,?,?,?,?)',
-        [category_id, expense_date, amount, description||null, req.user.id]
+      const { category_id, expense_date, amount, description, reference_type, reference_id } = req.body;
+      const [result] = await db.insert(
+        'INSERT INTO expenses (category_id,expense_date,amount,description,reference_type,reference_id,created_by) VALUES (?,?,?,?,?,?,?)',
+        [category_id, expense_date, amount, description||null, reference_type||null, reference_id||null, req.user.id]
       );
       res.status(201).json({ success: true, message: 'Expense recorded.', data: { id: result.insertId } });
     } catch (err) { next(err); }
@@ -62,7 +75,6 @@ expRouter.delete('/:id', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/expenses/summary/monthly?month=YYYY-MM
 expRouter.get('/summary/monthly', async (req, res, next) => {
   try {
     const month = req.query.month || new Date().toISOString().slice(0, 7);
@@ -72,8 +84,7 @@ expRouter.get('/summary/monthly', async (req, res, next) => {
     const [rows] = await db.query(
       `SELECT ec.name AS category, COALESCE(SUM(e.amount),0) AS total
        FROM expense_categories ec
-       LEFT JOIN expenses e ON e.category_id = ec.id
-         AND e.expense_date BETWEEN $1 AND $2
+       LEFT JOIN expenses e ON e.category_id = ec.id AND e.expense_date BETWEEN $1 AND $2
        GROUP BY ec.id, ec.name ORDER BY total DESC`,
       [periodStart, periodEnd]
     );

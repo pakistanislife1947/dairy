@@ -68,7 +68,7 @@ export function Sales() {
   const TABS = [
     { id: 'sales', label: 'Sales', icon: TrendingUp },
     { id: 'companies', label: 'Companies', icon: Building2 },
-    { id: 'contracts', label: 'Contracts', icon: FileContract },
+    { id: 'contracts', label: 'Contracts', icon: FileText },
   ];
 
   return (
