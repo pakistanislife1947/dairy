@@ -119,6 +119,7 @@ app.use('/api/dashboard', require('./src/routes/dashboard'));
 const settingsRoutes = require('./src/routes/settings');
 // ... your existing routes ...
 app.use('/api/settings', settingsRoutes);
+app.use('/api/customers', require('./src/routes/customers'));
 
 // ── Health check ───────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {

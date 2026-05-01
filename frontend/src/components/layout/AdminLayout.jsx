@@ -15,6 +15,7 @@ const NAV = [
   { to: 'farmers',   icon: Users,           label: 'Collection Centre' },
   { to: 'milk',      icon: Milk,            label: 'Milk Collection' },
   { to: 'billing',   icon: FileText,        label: 'Billing' },
+  { to: 'customers', icon: UserCheck,        label: 'Customers' },
   { to: 'sales',     icon: TrendingUp,      label: 'Sales' },
   { to: 'vehicles',  icon: Truck,           label: 'Vehicles' },
   { to: 'shops',     icon: Store,           label: 'Shops' },
