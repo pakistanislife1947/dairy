@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { Eye, EyeOff, Mail, Lock, Milk } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../api/client';
 import useAuthStore from '../../store/authStore';
@@ -9,9 +9,16 @@ import useAuthStore from '../../store/authStore';
 export default function LoginPage() {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading]   = useState(false);
+  const [logo, setLogo]         = useState('');
   const { login }  = useAuthStore();
   const navigate   = useNavigate();
   const { register, handleSubmit, formState: { errors } } = useForm();
+
+  useEffect(() => {
+    api.get('/settings').then(({ data }) => {
+      if (data.settings?.logo_url) setLogo(data.settings.logo_url);
+    }).catch(() => {});
+  }, []);
 
   const onSubmit = async (data) => {
     setLoading(true);
@@ -27,167 +34,161 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex bg-white">
+    <div style={{ display:'flex', height:'100vh', overflow:'hidden', background:'#fff' }}>
 
-      {/* ── Left: Form ──────────────────────────── */}
-      <div className="flex flex-col justify-between w-full lg:w-[45%] px-8 py-10 md:px-16">
+      {/* LEFT: Form */}
+      <div style={{ width:'100%', maxWidth:480, display:'flex', flexDirection:'column',
+                    justifyContent:'space-between', padding:'32px 48px', overflowY:'auto' }}>
 
         {/* Logo */}
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg flex items-center justify-center"
-            style={{ background: '#1b6ca8' }}>
-            <Milk size={20} className="text-white" />
+        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+          {logo
+            ? <img src={logo} alt="Logo" style={{ height:44, width:44, objectFit:'contain', borderRadius:10 }} />
+            : <div style={{ width:44, height:44, borderRadius:10, background:'#1b6ca8',
+                            display:'flex', alignItems:'center', justifyContent:'center',
+                            color:'#fff', fontWeight:800, fontSize:20 }}>B</div>
+          }
+          <div>
+            <div style={{ fontWeight:700, fontSize:16, color:'#1a2636' }}>Brimi Dairy</div>
+            <div style={{ fontSize:11, color:'#6b7a8d' }}>Management System</div>
           </div>
-          <span className="font-bold text-slate-800 text-lg">Brimi Dairy</span>
         </div>
 
         {/* Form */}
-        <div className="max-w-sm w-full mx-auto">
-          <h2 className="text-3xl font-bold text-slate-800 mb-2">Welcome Back!</h2>
-          <p className="text-slate-500 text-sm mb-8">
-            Sign in to access your dashboard and manage your dairy operations.
-          </p>
+        <div>
+          <h2 style={{ fontSize:26, fontWeight:700, color:'#1a2636', marginBottom:4 }}>Welcome Back!</h2>
+          <p style={{ fontSize:13, color:'#6b7a8d', marginBottom:24 }}>Sign in to manage your dairy operations.</p>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Email</label>
-              <div className="relative">
-                <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <form onSubmit={handleSubmit(onSubmit)}>
+            {/* Email */}
+            <div style={{ marginBottom:14 }}>
+              <label style={{ display:'block', fontSize:12, fontWeight:600, color:'#374151', marginBottom:6 }}>Email</label>
+              <div style={{ position:'relative' }}>
+                <Mail size={15} style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:'#9ca3af' }} />
                 <input type="email" placeholder="Enter your email"
-                  className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm
-                             text-slate-800 placeholder-slate-400 bg-slate-50
-                             focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500
-                             focus:bg-white transition-all"
-                  {...register('email', { required: 'Email is required' })} />
+                  style={{ width:'100%', paddingLeft:38, paddingRight:14, paddingTop:11, paddingBottom:11,
+                           border:'1px solid #e2e8f0', borderRadius:10, fontSize:13, background:'#f8fafc',
+                           outline:'none', boxSizing:'border-box', color:'#1a2636' }}
+                  {...register('email', { required: 'Required' })} />
               </div>
-              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
+              {errors.email && <p style={{ color:'#ef4444', fontSize:11, marginTop:4 }}>{errors.email.message}</p>}
             </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-sm font-medium text-slate-700">Password</label>
-                <Link to="/forgot-password" className="text-xs font-medium text-blue-600 hover:text-blue-700">
-                  Forgot Password?
-                </Link>
+            {/* Password */}
+            <div style={{ marginBottom:14 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
+                <label style={{ fontSize:12, fontWeight:600, color:'#374151' }}>Password</label>
+                <Link to="/forgot-password" style={{ fontSize:11, color:'#1b6ca8', textDecoration:'none' }}>Forgot Password?</Link>
               </div>
-              <div className="relative">
-                <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <div style={{ position:'relative' }}>
+                <Lock size={15} style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:'#9ca3af' }} />
                 <input type={showPass ? 'text' : 'password'} placeholder="Enter your password"
-                  className="w-full pl-10 pr-10 py-3 border border-slate-200 rounded-xl text-sm
-                             text-slate-800 placeholder-slate-400 bg-slate-50
-                             focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500
-                             focus:bg-white transition-all"
-                  {...register('password', { required: 'Password is required' })} />
-                <button type="button" onClick={() => setShowPass(p => !p)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                  {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                  style={{ width:'100%', paddingLeft:38, paddingRight:40, paddingTop:11, paddingBottom:11,
+                           border:'1px solid #e2e8f0', borderRadius:10, fontSize:13, background:'#f8fafc',
+                           outline:'none', boxSizing:'border-box', color:'#1a2636' }}
+                  {...register('password', { required: 'Required' })} />
+                <button type="button" onClick={() => setShowPass(p=>!p)}
+                  style={{ position:'absolute', right:12, top:'50%', transform:'translateY(-50%)',
+                           background:'none', border:'none', cursor:'pointer', color:'#9ca3af', padding:0 }}>
+                  {showPass ? <EyeOff size={15}/> : <Eye size={15}/>}
                 </button>
               </div>
-              {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
+              {errors.password && <p style={{ color:'#ef4444', fontSize:11, marginTop:4 }}>{errors.password.message}</p>}
             </div>
 
-            <div className="flex items-center gap-2">
-              <input type="checkbox" id="rem" className="w-4 h-4 rounded border-slate-300 text-blue-600"
-                {...register('rememberMe')} />
-              <label htmlFor="rem" className="text-sm text-slate-600 cursor-pointer">Remember me (30 days)</label>
+            {/* Remember */}
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:20 }}>
+              <input type="checkbox" id="rem" style={{ width:14, height:14 }} {...register('rememberMe')} />
+              <label htmlFor="rem" style={{ fontSize:12, color:'#6b7a8d', cursor:'pointer' }}>Remember me (30 days)</label>
             </div>
 
+            {/* Submit */}
             <button type="submit" disabled={loading}
-              className="w-full py-3 rounded-xl text-white font-semibold text-sm
-                         flex items-center justify-center gap-2 transition-all shadow-md
-                         disabled:opacity-60 disabled:cursor-not-allowed"
-              style={{ background: '#1b6ca8' }}>
+              style={{ width:'100%', padding:'12px 0', borderRadius:10, border:'none',
+                       background: loading ? '#94a3b8' : '#1b6ca8', color:'#fff',
+                       fontWeight:600, fontSize:14, cursor: loading ? 'not-allowed' : 'pointer',
+                       display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
               {loading
-                ? <><div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Signing in...</>
+                ? <><div style={{ width:16, height:16, border:'2px solid rgba(255,255,255,0.4)',
+                                  borderTop:'2px solid #fff', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />Signing in...</>
                 : 'Sign In'}
-            </button>
-
-            <div className="relative flex items-center gap-3">
-              <div className="flex-1 h-px bg-slate-200" />
-              <span className="text-xs text-slate-400">OR</span>
-              <div className="flex-1 h-px bg-slate-200" />
-            </div>
-
-            <button type="button"
-              className="w-full py-3 rounded-xl text-slate-700 font-medium text-sm border border-slate-200
-                         flex items-center justify-center gap-2 hover:bg-slate-50 transition-all">
-              <svg width="18" height="18" viewBox="0 0 48 48">
-                <path fill="#FFC107" d="M43.6 20H24v8h11.3C33.5 33.4 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l6-6C34.4 6.5 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-7.9 19.7-20 0-1.3-.1-2.7-.1-4z"/>
-                <path fill="#FF3D00" d="M6.3 14.7l6.9 5.1C14.9 16 19.1 13 24 13c3 0 5.7 1.1 7.8 2.9l6-6C34.4 6.5 29.5 4 24 4 16.2 4 9.5 8.4 6.3 14.7z"/>
-                <path fill="#4CAF50" d="M24 44c5.4 0 10.2-1.9 13.9-5.1l-6.4-5.4C29.5 35.1 26.9 36 24 36c-5.2 0-9.5-3.5-11.2-8.3l-6.9 5.3C9.4 39.5 16.2 44 24 44z"/>
-                <path fill="#1976D2" d="M43.6 20H24v8h11.3c-.9 2.5-2.6 4.6-4.8 6l6.4 5.4C40.9 35.4 44 30.1 44 24c0-1.3-.1-2.7-.4-4z"/>
-              </svg>
-              Continue with Google
             </button>
           </form>
 
-          <p className="text-center text-sm text-slate-500 mt-6">
-            Don't have an Account?{' '}
-            <Link to="/register" className="font-semibold text-blue-600 hover:text-blue-700">Sign Up</Link>
+          <p style={{ textAlign:'center', fontSize:12, color:'#6b7a8d', marginTop:16 }}>
+            No account?{' '}
+            <Link to="/register" style={{ color:'#1b6ca8', fontWeight:600, textDecoration:'none' }}>Register</Link>
           </p>
         </div>
 
         {/* Footer */}
-        <p className="text-xs text-slate-400 text-center">
-          Developed by <span className="font-semibold text-slate-500">Quantum Solution Group</span> · © 2025
+        <p style={{ fontSize:11, color:'#9ca3af', textAlign:'center' }}>
+          Developed by <span style={{ fontWeight:600, color:'#6b7a8d' }}>Quantum Solution Group</span> · © 2025
         </p>
       </div>
 
-      {/* ── Right: Info Panel ──────────────────── */}
-      <div className="hidden lg:flex flex-col justify-between flex-1 p-14 rounded-l-3xl"
-        style={{ background: 'linear-gradient(160deg, #0d3b6e 0%, #1b6ca8 45%, #1e90d6 100%)' }}>
+      {/* RIGHT: Dark panel */}
+      <div style={{ flex:1, background:'linear-gradient(160deg,#0d3b6e 0%,#1b6ca8 45%,#1e90d6 100%)',
+                    display:'flex', flexDirection:'column', justifyContent:'space-between',
+                    padding:'40px 56px', overflow:'hidden' }}
+           className="hidden-mobile">
 
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center">
-            <Milk size={22} className="text-white" />
-          </div>
+        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+          {logo
+            ? <img src={logo} alt="Logo" style={{ height:44, width:44, objectFit:'contain', borderRadius:10,
+                                                   background:'rgba(255,255,255,0.15)', padding:4 }} />
+            : <div style={{ width:44, height:44, borderRadius:10, background:'rgba(255,255,255,0.2)',
+                            display:'flex', alignItems:'center', justifyContent:'center',
+                            color:'#fff', fontWeight:800, fontSize:20 }}>B</div>
+          }
           <div>
-            <p className="text-white font-bold text-lg">Brimi Dairy</p>
-            <p className="text-blue-200 text-xs">Management System</p>
+            <div style={{ color:'#fff', fontWeight:700, fontSize:16 }}>Brimi Dairy</div>
+            <div style={{ color:'rgba(255,255,255,0.6)', fontSize:11 }}>Management System</div>
           </div>
         </div>
 
         <div>
-          <h1 className="text-white text-4xl font-bold leading-tight mb-5">
+          <h1 style={{ color:'#fff', fontSize:36, fontWeight:700, lineHeight:1.3, marginBottom:16 }}>
             Manage your dairy<br />
-            <span className="text-blue-200">operations with ease.</span>
+            <span style={{ color:'rgba(255,255,255,0.7)' }}>operations with ease.</span>
           </h1>
-          <p className="text-blue-100 text-base leading-relaxed mb-10 max-w-md">
-            Complete farm-to-sale dairy management — milk collection, billing, payroll, and real-time analytics — all in one place.
+          <p style={{ color:'rgba(255,255,255,0.75)', fontSize:14, lineHeight:1.7, marginBottom:32, maxWidth:380 }}>
+            Complete farm-to-sale dairy management — milk collection, billing, payroll, and real-time analytics.
           </p>
-
-          {/* Testimonial style */}
-          <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-6 max-w-md">
-            <p className="text-white/90 text-sm leading-relaxed mb-4">
-              "This system has completely transformed how we manage our dairy. It's reliable, efficient, and gives us real-time insight into every operation."
+          <div style={{ background:'rgba(255,255,255,0.12)', borderRadius:16, padding:24,
+                        border:'1px solid rgba(255,255,255,0.2)', maxWidth:400, marginBottom:32 }}>
+            <p style={{ color:'rgba(255,255,255,0.9)', fontSize:13, lineHeight:1.7, marginBottom:16 }}>
+              "This system has completely transformed how we manage our dairy. Real-time insights into every operation."
             </p>
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-white/30 flex items-center justify-center text-white font-bold text-sm">M</div>
+            <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+              <div style={{ width:36, height:36, borderRadius:'50%', background:'rgba(255,255,255,0.3)',
+                            display:'flex', alignItems:'center', justifyContent:'center',
+                            color:'#fff', fontWeight:700, fontSize:14 }}>M</div>
               <div>
-                <p className="text-white font-semibold text-sm">Muhammad Shahid</p>
-                <p className="text-blue-200 text-xs">Dairy Farm Owner, Multan</p>
+                <div style={{ color:'#fff', fontWeight:600, fontSize:13 }}>Muhammad Shahid</div>
+                <div style={{ color:'rgba(255,255,255,0.6)', fontSize:11 }}>Dairy Farm Owner, Multan</div>
               </div>
             </div>
           </div>
-
-          <div className="grid grid-cols-3 gap-4 mt-8 max-w-md">
-            {[
-              { n: '10+', l: 'Farms Managed' },
-              { n: '500+', l: 'Daily Records' },
-              { n: '100%', l: 'Uptime' },
-            ].map(({ n, l }) => (
-              <div key={l} className="text-center">
-                <p className="text-white text-2xl font-bold">{n}</p>
-                <p className="text-blue-200 text-xs mt-1">{l}</p>
+          <div style={{ display:'flex', gap:32 }}>
+            {[['10+','Farms'],['500+','Daily Records'],['100%','Uptime']].map(([n,l]) => (
+              <div key={l} style={{ textAlign:'center' }}>
+                <div style={{ color:'#fff', fontSize:24, fontWeight:700 }}>{n}</div>
+                <div style={{ color:'rgba(255,255,255,0.6)', fontSize:11, marginTop:2 }}>{l}</div>
               </div>
             ))}
           </div>
         </div>
 
-        <p className="text-blue-300 text-xs">
-          Powered by <span className="text-white font-semibold">Quantum Solution Group</span>
+        <p style={{ color:'rgba(255,255,255,0.5)', fontSize:11 }}>
+          Powered by <span style={{ color:'#fff', fontWeight:600 }}>Quantum Solution Group</span>
         </p>
       </div>
+
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @media (max-width: 768px) { .hidden-mobile { display: none !important; } }
+      `}</style>
     </div>
   );
 }

@@ -29,7 +29,7 @@ router.post('/companies', adminOnly,
   async (req, res, next) => {
     try {
       const { name, contact_name, phone, address, gstin } = req.body;
-      const [result] = await db.query(
+      const [result] = await db.insert(
         'INSERT INTO companies (name, contact_name, phone, address, gstin, created_by) VALUES (?,?,?,?,?,?)',
         [name, contact_name || null, phone || null, address || null, gstin || null, req.user.id]
       );
@@ -141,10 +141,11 @@ router.post('/sales',
       } = req.body;
 
       // Get company_id from contract
-      const [[contract]] = await db.query(
+      const [_cRows] = await db.query(
         'SELECT company_id FROM sales_contracts WHERE id = ? AND status = "active"',
         [contract_id]
       );
+      const contract = _cRows[0];
       if (!contract) return res.status(404).json({ success: false, message: 'Active contract not found.' });
 
       const total_amount = parseFloat((quantity_liters * rate_per_liter).toFixed(2));
