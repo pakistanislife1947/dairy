@@ -93,8 +93,10 @@ router.post('/:id/expenses',
       );
 
       // Also log to central expenses ledger
-      const [[dieselCat]] = await db.query("SELECT id FROM expense_categories WHERE name = 'Diesel' LIMIT 1");
-      const [[serviceCat]] = await db.query("SELECT id FROM expense_categories WHERE name = 'Vehicle Service' LIMIT 1");
+      const [_dc] = await db.query("SELECT id FROM expense_categories WHERE name = 'Diesel' LIMIT 1");
+      const dieselCat = _dc[0];
+      const [_sc] = await db.query("SELECT id FROM expense_categories WHERE name = 'Vehicle Service' LIMIT 1");
+      const serviceCat = _sc[0];
       const catId = expense_type === 'diesel' ? dieselCat?.id : serviceCat?.id;
       if (catId) {
         await db.query(

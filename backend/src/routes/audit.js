@@ -28,7 +28,8 @@ auditRouter.get('/', async (req, res, next) => {
     params.push(+limit, offset);
 
     const [rows] = await db.query(sql, params);
-    const [[{ total }]] = await db.query('SELECT COUNT(*) AS total FROM audit_logs');
+    const [_ar] = await db.query('SELECT COUNT(*) AS total FROM audit_logs');
+    const total = Number(_ar[0]?.total ?? 0);
 
     res.json({ success: true, data: rows, pagination: { page: +page, limit: +limit, total } });
   } catch (err) { next(err); }
