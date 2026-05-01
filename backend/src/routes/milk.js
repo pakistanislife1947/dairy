@@ -150,7 +150,7 @@ router.post('/', rules, validate, async (req, res, next) => {
     });
     const total_amount = computeAmount(quantity_liters, computed_rate);
 
-    const [result] = await db.insert(`INSERT INTO milk_records
+    const [result] = await db.query(`INSERT INTO milk_records
          (farmer_id, collection_date, shift, quantity_liters, fat_percentage, snf_percentage,
           base_rate, fat_correction, snf_correction, computed_rate, total_amount, notes, recorded_by)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,

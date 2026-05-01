@@ -31,7 +31,7 @@ router.post('/', adminOnly,
   async (req, res, next) => {
     try {
       const { reg_number, make_model, ownership_type, owner_name, owner_phone, monthly_rent, notes } = req.body;
-      const [result] = await db.insert(`INSERT INTO vehicles (reg_number, make_model, ownership_type, owner_name, owner_phone, monthly_rent, capacity_liters, notes, created_by)
+      const [result] = await db.query(`INSERT INTO vehicles (reg_number, make_model, ownership_type, owner_name, owner_phone, monthly_rent, capacity_liters, notes, created_by)
          VALUES (?,?,?,?,?,?,?,?,?)`,
         [reg_number, make_model || null, ownership_type,
          owner_name || null, owner_phone || null,
@@ -87,7 +87,7 @@ router.post('/:id/expenses',
   async (req, res, next) => {
     try {
       const { expense_date, expense_type, amount, odometer_km, notes } = req.body;
-      const [result] = await db.insert(`INSERT INTO vehicle_expenses (vehicle_id, expense_date, expense_type, amount, odometer_km, notes, recorded_by)
+      const [result] = await db.query(`INSERT INTO vehicle_expenses (vehicle_id, expense_date, expense_type, amount, odometer_km, notes, recorded_by)
          VALUES (?,?,?,?,?,?,?)`,
         [req.params.id, expense_date, expense_type, amount, odometer_km || null, notes || null, req.user.id]
       );

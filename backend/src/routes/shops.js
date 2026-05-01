@@ -31,7 +31,7 @@ router.post('/', adminOnly,
     try {
       const { shop_name, location, ownership_type, owner_name, owner_phone,
               monthly_rent, rent_due_day, latitude, longitude } = req.body;
-      const [result] = await db.insert(`INSERT INTO shops
+      const [result] = await db.query(`INSERT INTO shops
            (shop_name, location, ownership_type, owner_name, owner_phone,
             monthly_rent, rent_due_day, latitude, longitude, created_by)
          VALUES (?,?,?,?,?,?,?,?,?,?)`,
@@ -76,7 +76,7 @@ router.post('/:id/rent-payments',
   async (req, res, next) => {
     try {
       const { paid_for, paid_date, amount, notes } = req.body;
-      const [result] = await db.insert(`INSERT INTO shop_rent_payments (shop_id, paid_for, paid_date, amount, notes, recorded_by)
+      const [result] = await db.query(`INSERT INTO shop_rent_payments (shop_id, paid_for, paid_date, amount, notes, recorded_by)
          VALUES (?,?,?,?,?,?)`,
         [req.params.id, paid_for, paid_date, amount, notes || null, req.user.id]
       );

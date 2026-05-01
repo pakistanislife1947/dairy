@@ -59,7 +59,7 @@ expRouter.post('/',
   async (req, res, next) => {
     try {
       const { category_id, expense_date, amount, description, reference_type, reference_id } = req.body;
-      const [result] = await db.insert(
+      const [result] = await db.query(
         'INSERT INTO expenses (category_id,expense_date,amount,description,reference_type,reference_id,created_by) VALUES (?,?,?,?,?,?,?)',
         [category_id, expense_date, amount, description||null, reference_type||null, reference_id||null, req.user.id]
       );
