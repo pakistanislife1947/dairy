@@ -1,220 +1,264 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { useForm } from 'react-hook-form';
-import { Truck, Plus, Fuel, Wrench } from 'lucide-react';
+import { Truck, Plus, Fuel, Wrench, CreditCard, Calendar } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../api/client';
 import { PageHeader, Modal, SkeletonRow, EmptyState } from '../../components/ui';
 
-const fmtPKR = n => `Rs ${Number(n || 0).toLocaleString('en-PK', { maximumFractionDigits: 0 })}`;
+const fmt = n => `Rs ${Number(n||0).toLocaleString('en-PK',{maximumFractionDigits:0})}`;
 
 export default function Vehicles() {
-  const [vehicles, setVehicles] = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [modal, setModal]       = useState(null); // 'vehicle' | 'expense'
-  const [selVehicle, setSel]    = useState(null);
-  const [expenses, setExpenses] = useState([]);
-  const [saving, setSaving]     = useState(false);
-  const { register, handleSubmit, watch, reset } = useForm();
-  const ownershipType = watch('ownership_type', 'owned');
+  const [vehicles, setVehicles]   = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [modal, setModal]         = useState(null);
+  const [selVehicle, setSel]      = useState(null);
+  const [expenses, setExpenses]   = useState([]);
+  const [saving, setSaving]       = useState(false);
+
+  const [vForm, setVForm] = useState({
+    reg_number:'', make_model:'', use_type:'commercial', ownership_type:'owned',
+    owner_name:'', owner_phone:'', monthly_rent:'', capacity_liters:'',
+    purchase_price:'', payment_type:'full', installment_months:'', installment_paid:'0',
+  });
+  const [expForm, setExpForm] = useState({
+    expense_date: new Date().toISOString().slice(0,10),
+    expense_type:'diesel', amount:'', notes:'',
+  });
 
   const load = () => {
     setLoading(true);
-    api.get('/vehicles').then(r => setVehicles(r.data.data)).finally(() => setLoading(false));
+    api.get('/vehicles').then(r=>setVehicles(r.data.data||[])).finally(()=>setLoading(false));
   };
-  useEffect(() => { load(); }, []);
+  useEffect(()=>{ load(); },[]);
 
   const loadExpenses = (v) => {
     setSel(v);
-    api.get(`/vehicles/${v.id}/expenses`).then(r => setExpenses(r.data.data));
+    api.get(`/vehicles/${v.id}/expenses`).then(r=>setExpenses(r.data.data||[]));
+    setModal('expenses');
   };
 
-  const onVehicle = async (data) => {
+  const onVehicle = async (e) => {
+    e.preventDefault();
+    if (!vForm.reg_number) return toast.error('Registration number required');
     setSaving(true);
     try {
-      await api.post('/vehicles', data);
+      await api.post('/vehicles', vForm);
       toast.success('Vehicle added');
       setModal(null);
+      setVForm({ reg_number:'', make_model:'', use_type:'commercial', ownership_type:'owned',
+        owner_name:'', owner_phone:'', monthly_rent:'', capacity_liters:'', purchase_price:'', payment_type:'full', installment_months:'', installment_paid:'0' });
       load();
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to save');
-    } finally { setSaving(false); }
+    } catch (err) { toast.error(err.response?.data?.message||'Failed'); }
+    finally { setSaving(false); }
   };
 
-  const onExpense = async (data) => {
+  const onExpense = async (e) => {
+    e.preventDefault();
+    if (!expForm.amount) return toast.error('Amount required');
     setSaving(true);
     try {
-      await api.post(`/vehicles/${selVehicle.id}/expenses`, data);
+      await api.post(`/vehicles/${selVehicle.id}/expenses`, expForm);
       toast.success('Expense recorded');
-      setModal(null);
-      loadExpenses(selVehicle);
-      load();
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to save');
-    } finally { setSaving(false); }
+      setExpForm(p=>({...p, amount:'', notes:''}));
+      api.get(`/vehicles/${selVehicle.id}/expenses`).then(r=>setExpenses(r.data.data||[]));
+    } catch (err) { toast.error(err.response?.data?.message||'Failed'); }
+    finally { setSaving(false); }
   };
+
+  const monthlyInstallment = vForm.payment_type === 'installment' && vForm.purchase_price && vForm.installment_months
+    ? (parseFloat(vForm.purchase_price) / parseInt(vForm.installment_months)).toFixed(0)
+    : null;
+
+  const paidInstallments = parseInt(vForm.installment_paid || 0);
+  const totalInstallments = parseInt(vForm.installment_months || 0);
+  const remainingPayment  = monthlyInstallment ? (totalInstallments - paidInstallments) * parseFloat(monthlyInstallment) : null;
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Vehicles"
-        subtitle="Fleet management and expense tracking"
-        action={
-          <button onClick={() => { reset({ ownership_type: 'owned' }); setModal('vehicle'); }} className="btn-primary">
-            <Plus size={16} /> Add Vehicle
-          </button>
-        }
-      />
+      <PageHeader title="Vehicles" subtitle="Fleet management"
+        action={<button onClick={()=>setModal('vehicle')} className="btn-primary"><Plus size={16}/>Add Vehicle</button>}/>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Vehicles list */}
-        <div className="card p-0 overflow-hidden">
-          <div className="px-4 py-3 border-b border-[#d1dce8]">
-            <h3 className="font-semibold text-slate-700 text-sm">Fleet ({vehicles.length})</h3>
-          </div>
-          {loading
-            ? <div className="p-4 space-y-3">{[...Array(4)].map((_, i) => <div key={i} className="skeleton h-16 rounded-xl" />)}</div>
-            : vehicles.length === 0
-              ? <EmptyState icon={Truck} title="No vehicles" description="Add your first vehicle to start tracking" />
-              : (
-                <div className="divide-y divide-border">
-                  {vehicles.map(v => (
-                    <button key={v.id} onClick={() => loadExpenses(v)}
-                      className={`w-full text-left px-4 py-3 hover:bg-slate-100/30 transition-colors
-                        ${selVehicle?.id === v.id ? 'bg-brand-500/10 border-l-2 border-brand-500' : ''}`}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center
-                            ${v.ownership_type === 'owned' ? 'bg-brand-500/10' : 'bg-amber-500/10'}`}>
-                            <Truck size={15} className={v.ownership_type === 'owned' ? 'text-brand-400' : 'text-amber-400'} />
-                          </div>
-                          <div>
-                            <p className="font-semibold text-slate-700 text-sm">{v.reg_number}</p>
-                            <p className="text-xs text-muted">{v.make_model || '—'} · {v.ownership_type}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs text-red-400 font-mono">{fmtPKR(v.total_expenses)}</p>
-                          <p className="text-xs text-muted">{v.expense_count} entries</p>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )
-          }
-        </div>
-
-        {/* Expenses panel */}
-        <div className="space-y-3">
-          {selVehicle ? (
-            <>
-              <div className="card flex items-center justify-between">
-                <div>
-                  <h3 className="font-bold text-slate-800">{selVehicle.reg_number}</h3>
-                  <p className="text-xs text-muted">{selVehicle.make_model}</p>
-                </div>
-                <button onClick={() => { reset({}); setModal('expense'); }} className="btn-primary text-xs py-1.5 px-3">
-                  <Plus size={14} /> Add Expense
-                </button>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {loading ? [...Array(3)].map((_,i)=>(
+          <div key={i} className="card animate-pulse"><div className="h-4 bg-slate-200 rounded w-3/4 mb-3"/><div className="h-3 bg-slate-100 rounded w-1/2"/></div>
+        )) : vehicles.length===0 ? (
+          <div className="col-span-3"><EmptyState icon={Truck} title="No vehicles" description="Add your fleet"/></div>
+        ) : vehicles.map(v => (
+          <div key={v.id} className="card hover:shadow-md transition cursor-pointer" onClick={()=>loadExpenses(v)}>
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <p className="font-bold text-slate-800">{v.reg_number}</p>
+                <p className="text-sm text-slate-500">{v.make_model||'—'}</p>
               </div>
-              <div className="card p-0 overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="table-auto w-full">
-                    <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>KM</th></tr></thead>
-                    <tbody>
-                      {expenses.length === 0
-                        ? <tr><td colSpan={4}><EmptyState icon={Fuel} title="No expenses yet" description="Log fuel, service, or rent costs" /></td></tr>
-                        : expenses.map((e, i) => (
-                          <motion.tr key={e.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}>
-                            <td className="font-mono text-xs">{e.expense_date?.slice(0, 10)}</td>
-                            <td>
-                              <span className={`badge ${e.expense_type === 'diesel' ? 'badge-yellow' : e.expense_type === 'service' ? 'badge-blue' : 'badge-gray'}`}>
-                                {e.expense_type === 'diesel' ? <Fuel size={10} /> : <Wrench size={10} />}
-                                {' '}{e.expense_type}
-                              </span>
-                            </td>
-                            <td><span className="font-mono text-red-400 font-semibold">{fmtPKR(e.amount)}</span></td>
-                            <td className="text-muted text-xs font-mono">{e.odometer_km || '—'}</td>
-                          </motion.tr>
-                        ))
-                      }
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="card flex items-center justify-center h-48 text-muted text-sm">
-              ← Select a vehicle to view its expenses
+              <span className={`badge text-xs ${v.ownership_type==='owned'?'badge-blue':'badge-yellow'}`}>
+                {v.ownership_type}
+              </span>
             </div>
-          )}
-        </div>
+            <div className="grid grid-cols-2 gap-2 text-xs text-slate-500">
+              <span>Use: <b className="text-slate-700">{v.use_type||'—'}</b></span>
+              <span>Capacity: <b className="text-slate-700">{v.capacity_liters ? `${v.capacity_liters}L` : '—'}</b></span>
+              {v.ownership_type==='rented' && v.monthly_rent && (
+                <span className="col-span-2 text-amber-600">Rent: {fmt(v.monthly_rent)}/month</span>
+              )}
+            </div>
+            <p className="text-xs text-[#1d6faa] mt-3">Click to view expenses →</p>
+          </div>
+        ))}
       </div>
 
       {/* Add Vehicle Modal */}
-      <Modal isOpen={modal === 'vehicle'} onClose={() => setModal(null)} title="Add Vehicle" size="sm">
-        <form onSubmit={handleSubmit(onVehicle)} className="space-y-4">
-          <div>
-            <label className="label">Registration Number *</label>
-            <input {...register('reg_number', { required: 'Required' })} className="input" placeholder="ABC-123" />
+      <Modal isOpen={modal==='vehicle'} onClose={()=>setModal(null)} title="Add Vehicle" size="md">
+        <form onSubmit={onVehicle} className="space-y-4">
+
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="label">Reg Number *</label>
+              <input value={vForm.reg_number} onChange={e=>setVForm(p=>({...p,reg_number:e.target.value}))}
+                className="input" placeholder="LEA-1234"/></div>
+            <div><label className="label">Make / Model</label>
+              <input value={vForm.make_model} onChange={e=>setVForm(p=>({...p,make_model:e.target.value}))}
+                className="input" placeholder="Shehzore 2022"/></div>
           </div>
-          <div>
-            <label className="label">Make / Model</label>
-            <input {...register('make_model')} className="input" placeholder="Toyota Hilux 2020" />
+
+          {/* Use type */}
+          <div><label className="label">Use Type *</label>
+            <div className="grid grid-cols-2 gap-2">
+              {['commercial','residential'].map(t=>(
+                <button key={t} type="button" onClick={()=>setVForm(p=>({...p,use_type:t}))}
+                  className={`py-2.5 rounded-xl text-sm font-medium border-2 capitalize transition
+                    ${vForm.use_type===t?'border-[#1d6faa] bg-blue-50 text-[#1d6faa]':'border-slate-200 text-slate-500'}`}>
+                  {t}
+                </button>
+              ))}
+            </div>
           </div>
-          <div>
-            <label className="label">Ownership Type *</label>
-            <select {...register('ownership_type')} className="input">
-              <option value="owned">Self-Owned</option>
-              <option value="rented">Rented</option>
-            </select>
+
+          <div><label className="label">Capacity (Liters)</label>
+            <input type="number" step="0.1" value={vForm.capacity_liters}
+              onChange={e=>setVForm(p=>({...p,capacity_liters:e.target.value}))}
+              className="input font-mono" placeholder="e.g. 500"/></div>
+
+          {/* Ownership */}
+          <div><label className="label">Ownership *</label>
+            <div className="grid grid-cols-2 gap-2">
+              {['owned','rented'].map(t=>(
+                <button key={t} type="button" onClick={()=>setVForm(p=>({...p,ownership_type:t}))}
+                  className={`py-2.5 rounded-xl text-sm font-medium border-2 capitalize transition
+                    ${vForm.ownership_type===t?'border-[#1d6faa] bg-blue-50 text-[#1d6faa]':'border-slate-200 text-slate-500'}`}>
+                  {t}
+                </button>
+              ))}
+            </div>
           </div>
-          {ownershipType === 'rented' && (
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className="label">Owner Name</label><input {...register('owner_name')} className="input" /></div>
-              <div><label className="label">Owner Phone</label><input {...register('owner_phone')} className="input" /></div>
-              <div className="col-span-2"><label className="label">Monthly Rent (PKR)</label>
-                <input type="number" {...register('monthly_rent')} className="input font-mono" /></div>
+
+          {/* Owned — purchase info */}
+          {vForm.ownership_type==='owned' && (
+            <div className="border border-slate-200 rounded-xl p-4 space-y-3">
+              <p className="text-sm font-semibold text-slate-600">Purchase Details</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="label">Invoice Amount (PKR)</label>
+                  <input type="number" step="1000" value={vForm.purchase_price}
+                    onChange={e=>setVForm(p=>({...p,purchase_price:e.target.value}))}
+                    className="input font-mono" placeholder="1500000"/></div>
+                <div></div>
+              </div>
+              <div><label className="label">Payment Type *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[['full','Full Payment'],['installment','Installments']].map(([t,l])=>(
+                    <button key={t} type="button" onClick={()=>setVForm(p=>({...p,payment_type:t}))}
+                      className={`py-2 rounded-xl text-sm font-medium border-2 transition
+                        ${vForm.payment_type===t?'border-[#1d6faa] bg-blue-50 text-[#1d6faa]':'border-slate-200 text-slate-500'}`}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {vForm.payment_type==='installment' && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><label className="label">Total Months</label>
+                      <input type="number" min="1" value={vForm.installment_months}
+                        onChange={e=>setVForm(p=>({...p,installment_months:e.target.value}))}
+                        className="input font-mono" placeholder="12"/></div>
+                    <div><label className="label">Months Already Paid</label>
+                      <input type="number" min="0" value={vForm.installment_paid}
+                        onChange={e=>setVForm(p=>({...p,installment_paid:e.target.value}))}
+                        className="input font-mono" placeholder="0"/></div>
+                  </div>
+                  {monthlyInstallment && (
+                    <div className="bg-blue-50 rounded-lg px-3 py-2.5 text-sm space-y-1">
+                      <div className="flex justify-between"><span className="text-slate-600">Monthly installment:</span><span className="font-bold text-[#1d6faa] font-mono">{fmt(monthlyInstallment)}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-600">Remaining ({totalInstallments-paidInstallments} months):</span><span className="font-bold text-red-500 font-mono">{fmt(remainingPayment)}</span></div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
+
+          {/* Rented */}
+          {vForm.ownership_type==='rented' && (
+            <div className="border border-slate-200 rounded-xl p-4 space-y-3">
+              <p className="text-sm font-semibold text-slate-600">Owner Details</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="label">Owner Name</label>
+                  <input value={vForm.owner_name} onChange={e=>setVForm(p=>({...p,owner_name:e.target.value}))} className="input"/></div>
+                <div><label className="label">Owner Phone</label>
+                  <input value={vForm.owner_phone} onChange={e=>setVForm(p=>({...p,owner_phone:e.target.value}))} className="input"/></div>
+                <div className="col-span-2"><label className="label">Monthly Rent (PKR)</label>
+                  <input type="number" step="100" value={vForm.monthly_rent}
+                    onChange={e=>setVForm(p=>({...p,monthly_rent:e.target.value}))} className="input font-mono"/></div>
+              </div>
+            </div>
+          )}
+
           <div className="flex justify-end gap-3">
-            <button type="button" onClick={() => setModal(null)} className="btn-ghost">Cancel</button>
-            <button type="submit" disabled={saving} className="btn-primary">
-              {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Add Vehicle'}
-            </button>
+            <button type="button" onClick={()=>setModal(null)} className="btn-ghost">Cancel</button>
+            <button type="submit" disabled={saving} className="btn-primary">{saving?'Saving…':'Add Vehicle'}</button>
           </div>
         </form>
       </Modal>
 
-      {/* Log Expense Modal */}
-      <Modal isOpen={modal === 'expense'} onClose={() => setModal(null)} title={`Log Expense — ${selVehicle?.reg_number}`} size="sm">
-        <form onSubmit={handleSubmit(onExpense)} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="label">Date *</label>
-              <input type="date" {...register('expense_date', { required: 'Required' })} className="input" /></div>
-            <div><label className="label">Type *</label>
-              <select {...register('expense_type')} className="input">
-                <option value="diesel">Diesel</option>
-                <option value="service">Service / Repair</option>
-                <option value="rent">Rent</option>
-                <option value="insurance">Insurance</option>
-                <option value="other">Other</option>
-              </select>
+      {/* Expenses Modal */}
+      <Modal isOpen={modal==='expenses'} onClose={()=>setModal(null)} title={`${selVehicle?.reg_number||''} — Expenses`} size="md">
+        <div className="space-y-5">
+          {/* Add expense form */}
+          <form onSubmit={onExpense} className="border border-slate-200 rounded-xl p-4 space-y-3">
+            <p className="text-sm font-semibold text-slate-600">Add Expense</p>
+            <div className="grid grid-cols-3 gap-2">
+              <div><label className="label">Type</label>
+                <select value={expForm.expense_type} onChange={e=>setExpForm(p=>({...p,expense_type:e.target.value}))} className="input">
+                  <option value="diesel">Diesel</option>
+                  <option value="service">Service</option>
+                  <option value="rent">Rent</option>
+                  <option value="insurance">Insurance</option>
+                  <option value="other">Other</option>
+                </select></div>
+              <div><label className="label">Date</label>
+                <input type="date" value={expForm.expense_date}
+                  onChange={e=>setExpForm(p=>({...p,expense_date:e.target.value}))} className="input"/></div>
+              <div><label className="label">Amount (PKR)</label>
+                <input type="number" step="0.01" value={expForm.amount}
+                  onChange={e=>setExpForm(p=>({...p,amount:e.target.value}))} className="input font-mono"/></div>
             </div>
-            <div><label className="label">Amount (PKR) *</label>
-              <input type="number" step="0.01" {...register('amount', { required: 'Required', min: 0.01 })} className="input font-mono" /></div>
-            <div><label className="label">Odometer (km)</label>
-              <input type="number" {...register('odometer_km')} className="input font-mono" /></div>
+            <button type="submit" disabled={saving} className="btn-primary w-full">{saving?'Saving…':'Add'}</button>
+          </form>
+
+          {/* Expenses list */}
+          <div className="max-h-64 overflow-y-auto space-y-2">
+            {expenses.length===0
+              ? <p className="text-slate-400 text-sm text-center py-4">No expenses yet</p>
+              : expenses.map(e=>(
+                <div key={e.id} className="flex items-center justify-between text-sm border border-slate-100 rounded-lg px-3 py-2">
+                  <div>
+                    <span className={`badge text-xs mr-2 ${e.expense_type==='diesel'?'badge-yellow':'badge-blue'}`}>{e.expense_type}</span>
+                    <span className="text-slate-500 text-xs">{e.expense_date?.slice(0,10)}</span>
+                  </div>
+                  <span className="font-mono font-semibold text-red-500">{fmt(e.amount)}</span>
+                </div>
+              ))
+            }
           </div>
-          <div><label className="label">Notes</label><input {...register('notes')} className="input" placeholder="Optional" /></div>
-          <div className="flex justify-end gap-3">
-            <button type="button" onClick={() => setModal(null)} className="btn-ghost">Cancel</button>
-            <button type="submit" disabled={saving} className="btn-primary">
-              {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Save Expense'}
-            </button>
-          </div>
-        </form>
+        </div>
       </Modal>
     </div>
   );

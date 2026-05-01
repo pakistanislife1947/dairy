@@ -27,15 +27,31 @@ router.post('/employees',
   validate,
   async (req, res, next) => {
     try {
-      const { name, phone, address, designation, department, base_salary, join_date, user_id } = req.body;
+      const { name, phone, address, designation, department, base_salary, join_date, email, password } = req.body;
       const maxRow = await db.queryOne('SELECT COALESCE(MAX(id),0) AS maxid FROM employees');
       const emp_code = `EMP-${String(Number(maxRow.maxid) + 1).padStart(4,'0')}`;
+
+      let user_id = null;
+
+      // Create staff login if email+password provided
+      if (email && password) {
+        const existing = await db.queryOne('SELECT id FROM users WHERE email = $1', [email]);
+        if (existing) return res.status(409).json({ success: false, message: 'Email already in use.' });
+        const bcrypt = require('bcryptjs');
+        const hash = await bcrypt.hash(password, 12);
+        const [ur] = await db.query(
+          `INSERT INTO users (name,email,password_hash,role,is_active,email_verified) VALUES ($1,$2,$3,'staff',true,true) RETURNING id`,
+          [name, email, hash]
+        );
+        user_id = ur.insertId;
+      }
+
       const [result] = await db.query(
         `INSERT INTO employees (emp_code,name,phone,address,designation,department,base_salary,join_date,user_id,created_by)
          VALUES (?,?,?,?,?,?,?,?,?,?)`,
-        [emp_code, name, phone||null, address||null, designation||null, department||null, base_salary, join_date||null, user_id||null, req.user.id]
+        [emp_code, name, phone||null, address||null, designation||null, department||null, base_salary, join_date||null, user_id, req.user.id]
       );
-      res.status(201).json({ success: true, message: 'Employee added.', data: { id: result.insertId, emp_code } });
+      res.status(201).json({ success: true, message: 'Employee added.', data: { id: result.insertId, emp_code, user_id } });
     } catch (err) { next(err); }
   }
 );

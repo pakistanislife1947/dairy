@@ -31,12 +31,12 @@ router.post('/', adminOnly,
   async (req, res, next) => {
     try {
       const { reg_number, make_model, ownership_type, owner_name, owner_phone, monthly_rent, notes } = req.body;
-      const [result] = await db.query(`INSERT INTO vehicles (reg_number, make_model, ownership_type, owner_name, owner_phone, monthly_rent, capacity_liters, notes, created_by)
+      const [result] = await db.query(`INSERT INTO vehicles (reg_number, make_model, use_type, ownership_type, owner_name, owner_phone, monthly_rent, capacity_liters, purchase_price, payment_type, installment_months, installment_paid, notes, created_by)
          VALUES (?,?,?,?,?,?,?,?,?)`,
         [reg_number, make_model || null, ownership_type,
          owner_name || null, owner_phone || null,
          ownership_type === 'rented' ? (monthly_rent || null) : null,
-         req.body.capacity_liters || null, notes || null, req.user.id]
+         req.body.capacity_liters || null, req.body.purchase_price || null, req.body.payment_type || "full", req.body.installment_months || null, req.body.installment_paid || 0, notes || null, req.user.id]
       );
       res.status(201).json({ success: true, message: 'Vehicle added.', data: { id: result.insertId } });
     } catch (err) { next(err); }
