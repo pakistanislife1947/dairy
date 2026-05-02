@@ -2,7 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import {
-  LayoutDashboard, Users, Milk, FileText, TrendingUp,
+  LayoutDashboard, Users, Milk, Package, FileText, TrendingUp,
   Truck, Store, UserCheck, Receipt, BarChart3, Shield,
   LogOut, ChevronLeft, ChevronRight, Menu, Settings,
 } from 'lucide-react';
@@ -16,6 +16,7 @@ const NAV = [
   { to: 'milk',      icon: Milk,            label: 'Milk Collection' },
   { to: 'billing',   icon: FileText,        label: 'Billing' },
   { to: 'customers', icon: UserCheck,        label: 'Customers' },
+  { to: 'products',  icon: Package,         label: 'Products' },
   { to: 'sales',     icon: TrendingUp,      label: 'Sales' },
   { to: 'vehicles',  icon: Truck,           label: 'Vehicles' },
   { to: 'shops',     icon: Store,           label: 'Shops' },

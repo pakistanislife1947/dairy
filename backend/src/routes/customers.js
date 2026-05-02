@@ -6,115 +6,219 @@ const { authenticate, adminOnly } = require('../middleware/auth');
 
 router.use(authenticate);
 
-// GET all customers
+// ── GET all customers ────────────────────────────────────────
 router.get('/', async (req, res, next) => {
   try {
-    const { type, search = '' } = req.query;
-    let sql = `SELECT c.*, 
-      COUNT(cs.id) AS total_sales,
-      COALESCE(SUM(cs.total_amount),0) AS total_revenue
+    const { type, search='' } = req.query;
+    let sql = `SELECT c.*,
+      COALESCE((SELECT SUM(total_amount) FROM receipts WHERE customer_id=c.id),0) AS total_billed,
+      COALESCE((SELECT SUM(amount) FROM bulk_ledger WHERE customer_id=c.id),0) AS bulk_outstanding
       FROM customers c
-      LEFT JOIN customer_sales cs ON cs.customer_id = c.id
-      WHERE c.is_active = TRUE AND (c.name ILIKE $1 OR c.phone ILIKE $1)`;
-    const params = [`%${search}%`];
-    if (type) { sql += ` AND c.type = $2`; params.push(type); }
-    sql += ' GROUP BY c.id ORDER BY c.name';
-    const [rows] = await db.query(sql, params);
+      WHERE c.is_active=TRUE AND (c.name ILIKE $1 OR c.phone ILIKE $1)`;
+    const p = [`%${search}%`];
+    if (type) { sql += ' AND c.customer_type=$2'; p.push(type); }
+    sql += ' ORDER BY c.name';
+    const [rows] = await db.query(sql, p);
     res.json({ success: true, data: rows });
   } catch (err) { next(err); }
 });
 
-// POST add customer (prevent duplicate phone)
+// ── POST add customer ────────────────────────────────────────
 router.post('/', adminOnly,
-  [body('name').trim().notEmpty(), body('type').isIn(['household','cash','walkin'])],
+  [body('name').trim().notEmpty(), body('customer_type').isIn(['bulk','household','cash','walkin'])],
   validate,
   async (req, res, next) => {
     try {
-      const { name, phone, address, type, rate_per_liter, credit_limit } = req.body;
-
-      // Prevent duplicate phone
+      const { name, phone, address, customer_type, company_name, cnic,
+              daily_qty, rate_per_liter, credit_limit, payment_terms } = req.body;
       if (phone) {
-        const existing = await db.queryOne('SELECT id, name FROM customers WHERE phone = $1', [phone]);
-        if (existing) return res.status(409).json({
-          success: false,
-          message: `Phone already registered to: ${existing.name}`
-        });
+        const ex = await db.queryOne('SELECT id,name FROM customers WHERE phone=$1', [phone]);
+        if (ex) return res.status(409).json({ success:false, message:`Phone already used by: ${ex.name}` });
       }
-
-      const maxRow = await db.queryOne('SELECT COALESCE(MAX(id),0) AS maxid FROM customers');
-      const code = `CUS-${String(Number(maxRow.maxid)+1).padStart(4,'0')}`;
-
-      const [result] = await db.query(
-        `INSERT INTO customers (customer_code,name,phone,address,type,rate_per_liter,credit_limit,created_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-        [code, name, phone||null, address||null, type, rate_per_liter||0, credit_limit||0, req.user.id]
+      const maxRow = await db.queryOne('SELECT COALESCE(MAX(id),0) AS m FROM customers');
+      const code = `CUS-${String(Number(maxRow.m)+1).padStart(4,'0')}`;
+      const [r] = await db.query(
+        `INSERT INTO customers (customer_code,name,phone,address,customer_type,company_name,cnic,
+          daily_qty,rate_per_liter,credit_limit,payment_terms,created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+        [code,name,phone||null,address||null,customer_type,company_name||null,cnic||null,
+         daily_qty||0,rate_per_liter||0,credit_limit||0,payment_terms||'monthly',req.user.id]
       );
-      res.status(201).json({ success: true, message: 'Customer added.', data: { id: result.insertId, code } });
+      res.status(201).json({ success:true, data:{ id:r.insertId, code } });
     } catch (err) { next(err); }
   }
 );
 
-// GET single customer with sales history
+// ── GET customer detail ──────────────────────────────────────
 router.get('/:id', async (req, res, next) => {
   try {
-    const customer = await db.queryOne('SELECT * FROM customers WHERE id = $1', [req.params.id]);
-    if (!customer) return res.status(404).json({ success: false, message: 'Customer not found.' });
-    const [sales] = await db.query(
-      'SELECT * FROM customer_sales WHERE customer_id = $1 ORDER BY sale_date DESC LIMIT 50',
-      [req.params.id]
-    );
-    res.json({ success: true, data: { ...customer, sales } });
+    const c = await db.queryOne('SELECT * FROM customers WHERE id=$1', [req.params.id]);
+    if (!c) return res.status(404).json({ success:false, message:'Not found' });
+    const [receipts] = await db.query('SELECT * FROM receipts WHERE customer_id=$1 ORDER BY receipt_date DESC LIMIT 30', [req.params.id]);
+    const [ledger]   = await db.query('SELECT * FROM bulk_ledger WHERE customer_id=$1 ORDER BY entry_date DESC LIMIT 50', [req.params.id]);
+    const [extra]    = await db.query('SELECT * FROM household_extra WHERE customer_id=$1 ORDER BY entry_date DESC LIMIT 30', [req.params.id]);
+    res.json({ success:true, data:{ ...c, receipts, ledger, extra } });
   } catch (err) { next(err); }
 });
 
-// POST record customer sale
-router.post('/:id/sales',
-  [body('sale_date').isDate(), body('quantity_liters').isFloat({min:0.1}), body('rate_per_liter').isFloat({min:0})],
+// ── BULK: record delivery to ledger ─────────────────────────
+router.post('/:id/bulk-entry',
+  [body('qty_liters').isFloat({min:0.1}), body('rate').isFloat({min:0}), body('entry_date').isDate()],
   validate,
   async (req, res, next) => {
     try {
-      const { sale_date, quantity_liters, rate_per_liter, payment_mode = 'cash', payment_status = 'paid', notes } = req.body;
-      const total = parseFloat(quantity_liters) * parseFloat(rate_per_liter);
-
-      const [result] = await db.query(
-        `INSERT INTO customer_sales (customer_id,sale_date,quantity_liters,rate_per_liter,total_amount,payment_mode,payment_status,notes,recorded_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-        [req.params.id, sale_date, quantity_liters, rate_per_liter, total.toFixed(2), payment_mode, payment_status, notes||null, req.user.id]
+      const { qty_liters, rate, entry_date, notes } = req.body;
+      const amount = parseFloat(qty_liters) * parseFloat(rate);
+      await db.query(
+        'INSERT INTO bulk_ledger (customer_id,entry_date,qty_liters,rate,amount,notes,recorded_by) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+        [req.params.id, entry_date, qty_liters, rate, amount.toFixed(2), notes||null, req.user.id]
       );
-
-      // Update outstanding if credit
-      if (payment_status === 'pending') {
-        await db.query('UPDATE customers SET outstanding = outstanding + $1 WHERE id = $2', [total, req.params.id]);
-      }
-
-      res.status(201).json({ success: true, message: 'Sale recorded.', data: { id: result.insertId, total_amount: total } });
+      // update outstanding
+      await db.query('UPDATE customers SET outstanding=outstanding+$1 WHERE id=$2', [amount, req.params.id]);
+      res.status(201).json({ success:true, data:{ amount } });
     } catch (err) { next(err); }
   }
 );
 
-// PATCH mark customer sale as paid
-router.patch('/sales/:saleId/pay', adminOnly, async (req, res, next) => {
+// ── BULK: generate bill ──────────────────────────────────────
+router.post('/:id/bulk-bill', adminOnly, async (req, res, next) => {
   try {
-    const sale = await db.queryOne('SELECT * FROM customer_sales WHERE id = $1', [req.params.saleId]);
-    if (!sale) return res.status(404).json({ success: false, message: 'Sale not found.' });
-    if (sale.payment_status === 'paid') return res.status(400).json({ success: false, message: 'Already paid.' });
-
-    await db.query('UPDATE customer_sales SET payment_status=$1 WHERE id=$2', ['paid', req.params.saleId]);
-    await db.query('UPDATE customers SET outstanding = GREATEST(0, outstanding - $1) WHERE id = $2',
-      [sale.total_amount, sale.customer_id]);
-
-    res.json({ success: true, message: 'Payment recorded.' });
+    const { date_from, date_to, notes } = req.body;
+    const [entries] = await db.query(
+      'SELECT * FROM bulk_ledger WHERE customer_id=$1 AND entry_date BETWEEN $2 AND $3',
+      [req.params.id, date_from, date_to]
+    );
+    if (!entries.length) return res.status(400).json({ success:false, message:'No entries in date range' });
+    const total = entries.reduce((s,e)=>s+parseFloat(e.amount),0);
+    const seq   = await db.queryOne('SELECT COALESCE(MAX(id),0) AS m FROM receipts');
+    const no    = `REC-${String(Number(seq.m)+1).padStart(6,'0')}`;
+    const [r]   = await db.query(
+      `INSERT INTO receipts (receipt_no,customer_id,customer_type,receipt_date,period_start,period_end,
+        milk_qty,milk_amount,total_amount,status,notes,created_by)
+       VALUES ($1,$2,'bulk',CURRENT_DATE,$3,$4,$5,$6,$7,'pending',$8,$9) RETURNING id`,
+      [no,req.params.id,date_from,date_to,
+       entries.reduce((s,e)=>s+parseFloat(e.qty_liters),0).toFixed(2),
+       total.toFixed(2),total.toFixed(2),notes||null,req.user.id]
+    );
+    res.status(201).json({ success:true, data:{ receipt_id:r.insertId, receipt_no:no, total } });
   } catch (err) { next(err); }
 });
 
-// GET customer types summary
-router.get('/summary/types', async (_req, res, next) => {
+// ── HOUSEHOLD: add extra milk ────────────────────────────────
+router.post('/:id/extra-milk',
+  [body('extra_qty').isFloat({min:0.1}), body('entry_date').isDate()],
+  validate,
+  async (req, res, next) => {
+    try {
+      const c = await db.queryOne('SELECT rate_per_liter FROM customers WHERE id=$1', [req.params.id]);
+      const { extra_qty, entry_date, notes } = req.body;
+      const amount = parseFloat(extra_qty) * parseFloat(c.rate_per_liter);
+      await db.query(
+        'INSERT INTO household_extra (customer_id,entry_date,extra_qty,rate,amount,notes,recorded_by) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+        [req.params.id, entry_date, extra_qty, c.rate_per_liter, amount.toFixed(2), notes||null, req.user.id]
+      );
+      res.status(201).json({ success:true, data:{ amount } });
+    } catch (err) { next(err); }
+  }
+);
+
+// ── HOUSEHOLD: generate monthly bill ────────────────────────
+router.post('/:id/monthly-bill', adminOnly, async (req, res, next) => {
   try {
-    const [rows] = await db.query(
-      `SELECT type, COUNT(*) AS count, COALESCE(SUM(outstanding),0) AS total_outstanding
-       FROM customers WHERE is_active=TRUE GROUP BY type`
+    const { year, month } = req.body;
+    const c = await db.queryOne('SELECT * FROM customers WHERE id=$1', [req.params.id]);
+    if (c.customer_type !== 'household') return res.status(400).json({ success:false, message:'Not a household customer' });
+    const daysInMonth = new Date(parseInt(year), parseInt(month), 0).getDate();
+    const periodStart = `${year}-${String(month).padStart(2,'0')}-01`;
+    const periodEnd   = `${year}-${String(month).padStart(2,'0')}-${daysInMonth}`;
+    const baseMilk    = parseFloat(c.daily_qty) * daysInMonth;
+    const baseAmount  = baseMilk * parseFloat(c.rate_per_liter);
+    const [extras]    = await db.query(
+      'SELECT COALESCE(SUM(extra_qty),0) AS eq, COALESCE(SUM(amount),0) AS ea FROM household_extra WHERE customer_id=$1 AND entry_date BETWEEN $2 AND $3',
+      [req.params.id, periodStart, periodEnd]
     );
-    res.json({ success: true, data: rows });
+    const totalQty    = baseMilk + parseFloat(extras[0]?.eq||0);
+    const totalAmount = baseAmount + parseFloat(extras[0]?.ea||0);
+    const seq = await db.queryOne('SELECT COALESCE(MAX(id),0) AS m FROM receipts');
+    const no  = `REC-${String(Number(seq.m)+1).padStart(6,'0')}`;
+    const [r] = await db.query(
+      `INSERT INTO receipts (receipt_no,customer_id,customer_type,receipt_date,period_start,period_end,
+        milk_qty,milk_amount,total_amount,status,notes,created_by)
+       VALUES ($1,$2,'household',CURRENT_DATE,$3,$4,$5,$6,$7,'pending',$8,$9) RETURNING id`,
+      [no,req.params.id,periodStart,periodEnd,totalQty.toFixed(2),totalAmount.toFixed(2),totalAmount.toFixed(2),
+       `Monthly bill: base ${baseMilk}L + extra ${extras[0]?.eq||0}L`,req.user.id]
+    );
+    // Update outstanding
+    await db.query('UPDATE customers SET outstanding=outstanding+$1 WHERE id=$2', [totalAmount, req.params.id]);
+    res.status(201).json({ success:true, data:{ receipt_id:r.insertId, receipt_no:no, total:totalAmount, qty:totalQty } });
+  } catch (err) { next(err); }
+});
+
+// ── CASH/WALKIN: record sale + receipt ───────────────────────
+router.post('/sale',
+  [body('customer_type').isIn(['cash','walkin']), body('milk_qty').optional().isFloat({min:0})],
+  validate,
+  async (req, res, next) => {
+    try {
+      const { customer_id, customer_type, sale_date, milk_qty=0, milk_rate=0, items=[], notes } = req.body;
+      if (customer_type==='cash' && !customer_id) return res.status(400).json({ success:false, message:'Customer required for cash sale' });
+
+      const milkAmount    = parseFloat(milk_qty) * parseFloat(milk_rate);
+      const productsAmount = items.reduce((s,i)=>s+parseFloat(i.qty)*parseFloat(i.price),0);
+      const total         = milkAmount + productsAmount;
+
+      const seq = await db.queryOne('SELECT COALESCE(MAX(id),0) AS m FROM receipts');
+      const no  = `REC-${String(Number(seq.m)+1).padStart(6,'0')}`;
+
+      const [r] = await db.query(
+        `INSERT INTO receipts (receipt_no,customer_id,customer_type,receipt_date,milk_qty,milk_amount,
+          products_amount,total_amount,paid_amount,status,notes,created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'paid',$10,$11) RETURNING id`,
+        [no,customer_id||null,customer_type,sale_date||new Date().toISOString().slice(0,10),
+         milk_qty,milkAmount.toFixed(2),productsAmount.toFixed(2),total.toFixed(2),total.toFixed(2),notes||null,req.user.id]
+      );
+
+      // Insert line items + reduce stock
+      for (const item of items) {
+        await db.query(
+          'INSERT INTO receipt_items (receipt_id,product_id,product_name,qty,price,amount) VALUES ($1,$2,$3,$4,$5,$6)',
+          [r.insertId,item.product_id,item.product_name,item.qty,item.price,(item.qty*item.price).toFixed(2)]
+        );
+        await db.query('UPDATE products SET stock_qty=GREATEST(0,stock_qty-$1) WHERE id=$2', [item.qty,item.product_id]);
+      }
+
+      res.status(201).json({ success:true, data:{ receipt_id:r.insertId, receipt_no:no, total } });
+    } catch (err) { next(err); }
+  }
+);
+
+// ── Mark receipt as paid ─────────────────────────────────────
+router.patch('/:id/receipts/:rid/pay', adminOnly, async (req, res, next) => {
+  try {
+    await db.query("UPDATE receipts SET status='paid',paid_amount=total_amount WHERE id=$1", [req.params.rid]);
+    await db.query('UPDATE customers SET outstanding=GREATEST(0,outstanding-(SELECT total_amount FROM receipts WHERE id=$1)) WHERE id=$2',
+      [req.params.rid, req.params.id]);
+    res.json({ success:true });
+  } catch (err) { next(err); }
+});
+
+// ── Summary stats ────────────────────────────────────────────
+router.get('/stats/summary', async (_req, res, next) => {
+  try {
+    const today = new Date().toISOString().slice(0,10);
+    const [todaySales] = await db.query(
+      "SELECT customer_type, COUNT(*) AS cnt, SUM(total_amount) AS total FROM receipts WHERE receipt_date=$1 GROUP BY customer_type",
+      [today]
+    );
+    const [monthSales] = await db.query(
+      `SELECT TO_CHAR(receipt_date,'YYYY-MM') AS month, SUM(total_amount) AS total
+       FROM receipts WHERE receipt_date >= CURRENT_DATE - INTERVAL '6 months'
+       GROUP BY TO_CHAR(receipt_date,'YYYY-MM') ORDER BY month`
+    );
+    const outstanding = await db.queryOne(
+      "SELECT COALESCE(SUM(outstanding),0) AS total FROM customers WHERE customer_type='bulk'"
+    );
+    res.json({ success:true, data:{ todaySales, monthSales, bulkOutstanding: outstanding.total } });
   } catch (err) { next(err); }
 });
 

@@ -25,7 +25,8 @@ import Expenses   from './pages/admin/Expenses';
 import Reports    from './pages/admin/Reports';
 import AuditLogs  from './pages/admin/AuditLogs';
 import Settings   from './pages/admin/Settings';
-import Customers  from './pages/admin/Customers';   // ← was missing
+import Customers  from './pages/admin/Customers';
+import Products   from './pages/admin/Products';   // ← was missing
 
 import StaffDashboard from './pages/staff/StaffDashboard';
 import MilkEntry      from './pages/staff/MilkEntry';
@@ -84,7 +85,8 @@ export default function App() {
           <Route path="reports"    element={<Reports />} />
           <Route path="audit"      element={<AuditLogs />} />
           <Route path="settings"   element={<Settings />} />
-          <Route path="customers"  element={<Customers />} />  {/* ← moved inside, now auth-protected */}
+          <Route path="customers"  element={<Customers />} />
+          <Route path="products"   element={<Products />} />  {/* ← moved inside, now auth-protected */}
         </Route>
 
         {/* Staff */}
