@@ -66,7 +66,7 @@ export default function App() {
       <Routes>
         {/* Public */}
         <Route path="/login"           element={<LoginPage />} />
-        <!-- register disabled -->
+        
         <Route path="/verify-email"    element={<VerifyEmailPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password"  element={<ResetPasswordPage />} />
