@@ -2,7 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import {
-  LayoutDashboard, Users, Milk, Package, UserCheck2, FileText, TrendingUp,
+  LayoutDashboard, Users, Milk, Package, UserCheck2, FileText, TrendingUp, ShoppingBag,
   Truck, Store, UserCheck, Receipt, BarChart3, Shield,
   LogOut, ChevronLeft, ChevronRight, Menu, Settings,
 } from 'lucide-react';
