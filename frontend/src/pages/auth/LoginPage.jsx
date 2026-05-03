@@ -1,10 +1,18 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../api/client';
 import useAuthStore from '../../store/authStore';
+
+const FEATURES = [
+  'Milk collection & FAT/SNF pricing',
+  'Bulk, Household & Cash customers',
+  'Auto invoicing & billing',
+  'HR, payroll & advance management',
+  'Real-time reports & analytics',
+];
 
 export default function LoginPage() {
   const [showPass, setShowPass] = useState(false);
@@ -17,8 +25,8 @@ export default function LoginPage() {
 
   useEffect(() => {
     api.get('/settings').then(({ data }) => {
-      if (data.settings?.logo_url)  setLogo(data.settings.logo_url);
-      if (data.settings?.app_name)  setAppName(data.settings.app_name);
+      if (data.settings?.logo_url) setLogo(data.settings.logo_url);
+      if (data.settings?.app_name) setAppName(data.settings.app_name);
     }).catch(() => {});
   }, []);
 
@@ -36,76 +44,126 @@ export default function LoginPage() {
   };
 
   return (
-    <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#f0f4f8', fontFamily:'Inter,sans-serif', padding:'24px' }}>
+    <div className="min-h-screen flex flex-col lg:flex-row">
 
-      {/* Card */}
-      <div style={{ width:'100%', maxWidth:440, background:'#fff', borderRadius:20, boxShadow:'0 8px 40px rgba(0,0,0,0.10)', padding:'44px 44px 36px', border:'1px solid #e8edf3' }}>
+      {/* ── LEFT PANEL ──────────────────────────────────── */}
+      <div className="hidden lg:flex flex-col justify-between w-[46%] min-h-screen p-12"
+        style={{ background: '#0d2137' }}>
 
-        {/* Logo + Name */}
-        <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:36 }}>
+        {/* Logo */}
+        <div className="flex items-center gap-4">
           {logo
-            ? <img src={logo} alt="logo" style={{ height:52, width:52, objectFit:'contain', borderRadius:12 }}/>
-            : <div style={{ width:52, height:52, borderRadius:12, background:'linear-gradient(135deg,#1b6ca8,#1e90d6)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, fontWeight:900, color:'#fff' }}>
-                {appName[0]}
-              </div>
+            ? <img src={logo} alt="logo" className="w-12 h-12 rounded-xl object-contain" style={{ background:'rgba(255,255,255,0.1)', padding:4 }}/>
+            : <div className="w-12 h-12 rounded-xl flex items-center justify-center text-xl font-black text-white" style={{ background:'#1b6ca8' }}>{appName[0]}</div>
           }
           <div>
-            <p style={{ margin:0, fontWeight:800, fontSize:20, color:'#0a2540' }}>{appName}</p>
-            <p style={{ margin:0, fontSize:12, color:'#94a3b8' }}>Management System</p>
+            <p className="text-white font-bold text-lg leading-none">{appName}</p>
+            <p className="text-blue-400 text-xs mt-0.5">Dairy Management System</p>
           </div>
         </div>
 
-        <h2 style={{ margin:'0 0 4px', fontSize:22, fontWeight:700, color:'#0a2540' }}>Sign in</h2>
-        <p style={{ margin:'0 0 28px', fontSize:13, color:'#94a3b8' }}>Enter your credentials to continue</p>
-
-        <form onSubmit={handleSubmit(onSubmit)}>
-          <div style={{ marginBottom:16 }}>
-            <label style={{ display:'block', fontSize:12, fontWeight:600, color:'#374151', marginBottom:6 }}>Email</label>
-            <input type="email" placeholder="admin@dairy.local" autoComplete="email"
-              style={{ width:'100%', padding:'11px 14px', border:'1.5px solid #e2e8f0', borderRadius:10, fontSize:14, color:'#1a2636', background:'#f8fafc', outline:'none', boxSizing:'border-box' }}
-              {...register('email', { required:'Required' })}/>
-            {errors.email && <p style={{ color:'#ef4444', fontSize:11, marginTop:4 }}>{errors.email.message}</p>}
+        {/* Headline */}
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-4xl font-extrabold leading-tight" style={{ color: '#f1f5f9' }}>
+              Complete dairy<br/>management,<br/>
+              <span style={{ color: '#60a5fa' }}>simplified.</span>
+            </h1>
+            <p className="text-slate-400 mt-4 text-sm leading-relaxed max-w-xs">
+              From farm gate to customer — track every liter, every payment, every employee.
+            </p>
           </div>
 
-          <div style={{ marginBottom:16 }}>
-            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
-              <label style={{ fontSize:12, fontWeight:600, color:'#374151' }}>Password</label>
-              <Link to="/forgot-password" style={{ fontSize:11, color:'#1b6ca8', textDecoration:'none', fontWeight:500 }}>Forgot password?</Link>
-            </div>
-            <div style={{ position:'relative' }}>
-              <input type={showPass?'text':'password'} placeholder="••••••••" autoComplete="current-password"
-                style={{ width:'100%', padding:'11px 42px 11px 14px', border:'1.5px solid #e2e8f0', borderRadius:10, fontSize:14, color:'#1a2636', background:'#f8fafc', outline:'none', boxSizing:'border-box' }}
-                {...register('password', { required:'Required' })}/>
-              <button type="button" onClick={()=>setShowPass(p=>!p)}
-                style={{ position:'absolute', right:12, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:0, display:'flex' }}>
-                {showPass?<EyeOff size={16}/>:<Eye size={16}/>}
-              </button>
-            </div>
-            {errors.password && <p style={{ color:'#ef4444', fontSize:11, marginTop:4 }}>{errors.password.message}</p>}
+          {/* Features list */}
+          <ul className="space-y-3">
+            {FEATURES.map(f => (
+              <li key={f} className="flex items-center gap-3 text-sm text-slate-300">
+                <CheckCircle size={15} className="text-blue-400 flex-shrink-0"/>
+                {f}
+              </li>
+            ))}
+          </ul>
+
+          {/* Stats row */}
+          <div className="flex gap-8 pt-2">
+            {[['4+','Customer Types'],['Auto','Invoicing'],['Real-time','Reports']].map(([n,l])=>(
+              <div key={l}>
+                <p className="text-white font-bold text-xl">{n}</p>
+                <p className="text-slate-500 text-xs mt-0.5">{l}</p>
+              </div>
+            ))}
           </div>
+        </div>
 
-          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:24 }}>
-            <input type="checkbox" id="rem" style={{ width:15, height:15, accentColor:'#1b6ca8' }} {...register('rememberMe')}/>
-            <label htmlFor="rem" style={{ fontSize:12, color:'#64748b', cursor:'pointer' }}>Remember me (30 days)</label>
-          </div>
-
-          <button type="submit" disabled={loading}
-            style={{ width:'100%', padding:'12px 0', borderRadius:10, border:'none',
-              background: loading?'#94a3b8':'#1b6ca8', color:'#fff', fontWeight:700, fontSize:14,
-              cursor:loading?'not-allowed':'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8,
-              boxShadow:'0 4px 14px rgba(27,108,168,0.3)', transition:'background 0.15s' }}>
-            {loading
-              ? <><div style={{ width:16, height:16, border:'2px solid rgba(255,255,255,0.3)', borderTop:'2px solid #fff', borderRadius:'50%', animation:'spin 0.7s linear infinite' }}/>Signing in…</>
-              : 'Sign In'}
-          </button>
-        </form>
-
-        <p style={{ textAlign:'center', fontSize:11, color:'#cbd5e1', marginTop:28 }}>
-          Developed by <span style={{ fontWeight:600 }}>Quantum Solution Group</span> · © 2025
+        <p className="text-slate-600 text-xs">
+          Developed by <span className="text-slate-400 font-medium">Quantum Solution Group</span> · © 2025
         </p>
       </div>
 
-      <style>{`@keyframes spin{to{transform:rotate(360deg);}}`}</style>
+      {/* ── RIGHT PANEL ─────────────────────────────────── */}
+      <div className="flex-1 flex items-center justify-center min-h-screen bg-slate-50 p-6">
+        <div className="w-full max-w-sm">
+
+          {/* Mobile logo */}
+          <div className="flex items-center gap-3 mb-8 lg:hidden">
+            {logo
+              ? <img src={logo} alt="logo" className="w-10 h-10 rounded-lg object-contain"/>
+              : <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold" style={{ background:'#1b6ca8' }}>{appName[0]}</div>
+            }
+            <span className="font-bold text-slate-800">{appName}</span>
+          </div>
+
+          <h2 className="text-2xl font-bold text-slate-800 mb-1">Welcome back</h2>
+          <p className="text-slate-400 text-sm mb-8">Sign in to your account</p>
+
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Email</label>
+              <input type="email" placeholder="admin@dairy.local" autoComplete="email"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 text-sm
+                           focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition"
+                {...register('email', { required: 'Required' })}/>
+              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
+            </div>
+
+            <div>
+              <div className="flex justify-between mb-1.5">
+                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Password</label>
+                <Link to="/forgot-password" className="text-xs text-blue-600 hover:text-blue-700 font-medium">Forgot?</Link>
+              </div>
+              <div className="relative">
+                <input type={showPass ? 'text' : 'password'} placeholder="••••••••" autoComplete="current-password"
+                  className="w-full px-4 py-3 pr-11 rounded-xl border border-slate-200 bg-white text-slate-800 text-sm
+                             focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition"
+                  {...register('password', { required: 'Required' })}/>
+                <button type="button" onClick={() => setShowPass(p => !p)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  {showPass ? <EyeOff size={16}/> : <Eye size={16}/>}
+                </button>
+              </div>
+              {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input type="checkbox" id="rem" className="w-4 h-4 rounded accent-blue-600" {...register('rememberMe')}/>
+              <label htmlFor="rem" className="text-sm text-slate-500 cursor-pointer">Remember me for 30 days</label>
+            </div>
+
+            <button type="submit" disabled={loading}
+              className="w-full py-3 rounded-xl text-white font-semibold text-sm transition
+                         flex items-center justify-center gap-2 disabled:opacity-60"
+              style={{ background: loading ? '#94a3b8' : '#1b6ca8', boxShadow: '0 4px 14px rgba(27,108,168,0.35)' }}>
+              {loading
+                ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>Signing in…</>
+                : 'Sign In'}
+            </button>
+          </form>
+
+          <p className="text-center text-xs text-slate-400 mt-8">
+            Developed by <span className="font-medium text-slate-500">Quantum Solution Group</span>
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,48 +1,92 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import {
   LayoutDashboard, Users, Milk, Package, UserCheck2, FileText, TrendingUp, ShoppingBag,
-  Truck, Store, UserCheck, Receipt, BarChart3, Shield,
-  LogOut, ChevronLeft, ChevronRight, Menu, Settings,
+  Truck, Store, UserCheck, Receipt, BarChart3, Shield, LogOut, Menu, X,
+  Settings, ChevronDown, ChevronRight, DollarSign, Warehouse,
 } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 
-const NAV = [
-  { to: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: 'farmers',   icon: Users,           label: 'Collection Centre' },
-  { to: 'milk',      icon: Milk,            label: 'Milk Collection' },
-  { to: 'customers', icon: UserCheck,       label: 'Customers' },
-  { to: 'sales',     icon: TrendingUp,      label: 'Sales' },
-  { to: 'walkin',    icon: ShoppingBag,     label: 'Walk-in' },
-  { to: 'products',  icon: Package,         label: 'Products' },
-  { to: 'invoices',  icon: FileText,        label: 'Invoices' },
-  { to: 'billing',   icon: Receipt,         label: 'Billing' },
-  { to: 'vehicles',  icon: Truck,           label: 'Vehicles' },
-  { to: 'shops',     icon: Store,           label: 'Shops' },
-  { to: 'hr',        icon: UserCheck2,      label: 'HR & Payroll' },
-  { to: 'expenses',  icon: Receipt,         label: 'Expenses' },
-  { to: 'reports',   icon: BarChart3,       label: 'Reports' },
-  { to: 'audit',     icon: Shield,          label: 'Audit Logs' },
-  { to: 'settings',  icon: Settings,        label: 'Settings' },
+const NAV_GROUPS = [
+  {
+    label: null,
+    items: [{ to: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' }],
+  },
+  {
+    label: 'Purchase',
+    items: [
+      { to: 'farmers', icon: Users,  label: 'Collection Centre' },
+      { to: 'milk',    icon: Milk,   label: 'Milk Collection' },
+    ],
+  },
+  {
+    label: 'Sales',
+    items: [
+      { to: 'customers', icon: UserCheck,   label: 'Customers' },
+      { to: 'sales',     icon: TrendingUp,  label: 'Sales' },
+      { to: 'walkin',    icon: ShoppingBag, label: 'Walk-in' },
+      { to: 'invoices',  icon: FileText,    label: 'Invoices' },
+      { to: 'billing',   icon: Receipt,     label: 'Billing' },
+    ],
+  },
+  {
+    label: 'Resources',
+    items: [
+      { to: 'products',  icon: Package,    label: 'Products' },
+      { to: 'vehicles',  icon: Truck,      label: 'Vehicles' },
+      { to: 'shops',     icon: Store,      label: 'Shops' },
+      { to: 'hr',        icon: UserCheck2, label: 'HR & Payroll' },
+    ],
+  },
+  {
+    label: 'Expenses',
+    items: [
+      { to: 'expenses', icon: DollarSign, label: 'Expenses' },
+    ],
+  },
+  {
+    label: 'Reports',
+    items: [
+      { to: 'reports', icon: BarChart3, label: 'Reports' },
+      { to: 'audit',   icon: Shield,    label: 'Audit Logs' },
+    ],
+  },
+  {
+    label: null,
+    items: [{ to: 'settings', icon: Settings, label: 'Settings' }],
+  },
 ];
 
 export default function AdminLayout() {
-  const [collapsed, setCollapsed]   = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [logoUrl, setLogoUrl]       = useState('');
-  const [appName, setAppName]       = useState('Brimi Dairy');
-  const { user, logout }            = useAuthStore();
-  const navigate                    = useNavigate();
+  const [collapsed, setCollapsed]   = useState({});
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [logoUrl, setLogoUrl]   = useState('');
+  const [appName, setAppName]   = useState('Brimi Dairy');
+  const { user, logout }        = useAuthStore();
+  const navigate                = useNavigate();
+  const location                = useLocation();
 
   useEffect(() => {
     api.get('/settings').then(({ data }) => {
-      if (data.settings?.logo_url)  setLogoUrl(data.settings.logo_url);
-      if (data.settings?.app_name)  setAppName(data.settings.app_name);
+      if (data.settings?.logo_url) setLogoUrl(data.settings.logo_url);
+      if (data.settings?.app_name) setAppName(data.settings.app_name);
     }).catch(() => {});
+
+    const handler = () => {
+      api.get('/settings').then(({ data }) => {
+        if (data.settings?.logo_url) setLogoUrl(data.settings.logo_url);
+        if (data.settings?.app_name) setAppName(data.settings.app_name);
+      }).catch(() => {});
+    };
+    window.addEventListener('logo-updated', handler);
+    return () => window.removeEventListener('logo-updated', handler);
   }, []);
+
+  // Close mobile sidebar on route change
+  useEffect(() => { setMobileOpen(false); }, [location.pathname]);
 
   const handleLogout = async () => {
     await logout();
@@ -50,150 +94,115 @@ export default function AdminLayout() {
     navigate('/login');
   };
 
+  const toggleGroup = (label) => setCollapsed(p => ({ ...p, [label]: !p[label] }));
+
+  const SidebarContent = () => (
+    <div className="flex flex-col h-full">
+      {/* Logo */}
+      <div className="flex items-center gap-3 px-4 h-16 border-b border-white/10 flex-shrink-0">
+        {logoUrl
+          ? <img src={logoUrl} alt="logo" className="w-8 h-8 rounded-lg object-contain flex-shrink-0" style={{ background:'rgba(255,255,255,0.1)', padding:2 }}/>
+          : <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-sm flex-shrink-0" style={{ background:'rgba(255,255,255,0.15)' }}>{appName[0]}</div>
+        }
+        <div className="min-w-0">
+          <p className="text-white font-bold text-sm truncate">{appName}</p>
+          <p className="text-blue-300/70 text-xs">Management</p>
+        </div>
+      </div>
+
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5 scrollbar-thin">
+        {NAV_GROUPS.map((group, gi) => (
+          <div key={gi} className={gi > 0 ? 'mt-1' : ''}>
+            {/* Group label */}
+            {group.label && (
+              <button onClick={() => toggleGroup(group.label)}
+                className="w-full flex items-center justify-between px-2 py-1.5 mb-0.5 group">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-blue-300/50 group-hover:text-blue-300/80 transition">
+                  {group.label}
+                </span>
+                {collapsed[group.label]
+                  ? <ChevronRight size={10} className="text-blue-300/40"/>
+                  : <ChevronDown size={10} className="text-blue-300/40"/>
+                }
+              </button>
+            )}
+            {/* Nav items */}
+            {!collapsed[group.label] && group.items.map(({ to, icon: Icon, label }) => (
+              <NavLink key={to} to={to}
+                className={({ isActive }) =>
+                  `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all
+                   ${isActive
+                    ? 'bg-white/15 text-white shadow-sm'
+                    : 'text-blue-100/70 hover:bg-white/8 hover:text-white'}`
+                }>
+                <Icon size={16} className="flex-shrink-0"/>
+                <span className="truncate">{label}</span>
+              </NavLink>
+            ))}
+          </div>
+        ))}
+      </nav>
+
+      {/* User footer */}
+      <div className="border-t border-white/10 p-3 flex-shrink-0">
+        <div className="flex items-center gap-2.5 px-2 py-1.5 mb-1">
+          <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+            {user?.name?.[0]?.toUpperCase() || 'A'}
+          </div>
+          <div className="min-w-0">
+            <p className="text-white text-xs font-semibold truncate">{user?.name}</p>
+            <p className="text-blue-300/60 text-[10px] truncate">{user?.role}</p>
+          </div>
+        </div>
+        <button onClick={handleLogout}
+          className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm font-medium text-red-300 hover:bg-red-500/15 transition">
+          <LogOut size={15}/>Logout
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#f0f4f8' }}>
-      <AnimatePresence>
-        {mobileOpen && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-20 bg-black/40 lg:hidden"
-            onClick={() => setMobileOpen(false)}
-          />
-        )}
-      </AnimatePresence>
 
-      {/* Sidebar */}
-      <motion.aside
-        animate={{ width: collapsed ? 68 : 240 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className={`
-          relative z-30 flex flex-col flex-shrink-0
-          border-r border-[#d1dce8] bg-white shadow-sm
-          lg:translate-x-0
-          ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-          fixed lg:static inset-y-0 left-0 transition-transform
-        `}
-      >
-        {/* Logo area */}
-        <div className="flex items-center gap-3 h-16 px-4 border-b border-[#d1dce8]">
-          {logoUrl
-            ? <img src={logoUrl} alt="Logo" className="w-9 h-9 object-contain rounded-lg flex-shrink-0" />
-            : <div className="w-9 h-9 rounded-xl bg-[#1d6faa] flex items-center justify-center flex-shrink-0">
-                <Milk className="w-5 h-5 text-white" />
-              </div>
-          }
-          <AnimatePresence>
-            {!collapsed && (
-              <motion.div
-                initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }} className="overflow-hidden"
-              >
-                <p className="font-bold text-sm text-slate-800 whitespace-nowrap">{appName}</p>
-                <p className="text-xs text-slate-500">Admin Panel</p>
-              </motion.div>
-            )}
-          </AnimatePresence>
+      {/* Desktop sidebar */}
+      <aside className="hidden lg:flex flex-col w-56 flex-shrink-0"
+        style={{ background: 'linear-gradient(180deg, #0d2137 0%, #0f2d4a 100%)' }}>
+        <SidebarContent/>
+      </aside>
+
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-40 lg:hidden">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)}/>
+          <aside className="relative z-50 flex flex-col w-64 h-full"
+            style={{ background: 'linear-gradient(180deg, #0d2137 0%, #0f2d4a 100%)' }}>
+            <SidebarContent/>
+          </aside>
         </div>
+      )}
 
-        {/* Nav */}
-        <nav className="flex-1 py-4 space-y-0.5 px-2 overflow-y-auto">
-          {NAV.map(({ to, icon: Icon, label }) => (
-            <NavLink
-              key={to} to={to}
-              className={({ isActive }) => `
-                flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium
-                transition-all duration-150
-                ${isActive
-                  ? 'bg-[#1d6faa] text-white shadow-sm'
-                  : 'text-slate-600 hover:bg-blue-50 hover:text-[#1d6faa]'
-                }
-              `}
-            >
-              <Icon className="flex-shrink-0" size={18} />
-              <AnimatePresence>
-                {!collapsed && (
-                  <motion.span
-                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                    className="whitespace-nowrap overflow-hidden"
-                  >{label}</motion.span>
-                )}
-              </AnimatePresence>
-            </NavLink>
-          ))}
-        </nav>
+      {/* Main content */}
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
 
-        {/* User + logout */}
-        <div className="border-t border-[#d1dce8] p-3 space-y-1">
-          <AnimatePresence>
-            {!collapsed && (
-              <motion.div
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="px-2 py-1"
-              >
-                <p className="text-sm font-semibold text-slate-700 truncate">{user?.name}</p>
-                <p className="text-xs text-slate-400 truncate">{user?.email}</p>
-              </motion.div>
-            )}
-          </AnimatePresence>
-          <button onClick={handleLogout}
-            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium
-                       text-red-500 hover:bg-red-50 transition-colors">
-            <LogOut size={18} className="flex-shrink-0" />
-            {!collapsed && <span>Logout</span>}
-          </button>
-        </div>
-
-        {/* Footer */}
-        <AnimatePresence>
-          {!collapsed && (
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="px-4 py-3 border-t border-[#d1dce8]"
-            >
-              <p className="text-[10px] text-slate-400 text-center leading-relaxed">
-                Developed by <span className="font-semibold text-[#1d6faa]">Quantum Solution Group</span><br />
-                © 2025 All rights reserved
-              </p>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Collapse toggle */}
-        <button
-          onClick={() => setCollapsed(c => !c)}
-          className="hidden lg:flex absolute -right-3 top-20 w-6 h-6 bg-white border border-[#d1dce8]
-                     rounded-full items-center justify-center text-slate-400 hover:text-[#1d6faa]
-                     transition-colors z-10 shadow-sm"
-        >
-          {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-        </button>
-      </motion.aside>
-
-      {/* Main */}
-      <div className="flex-1 flex flex-col overflow-hidden">
         {/* Mobile topbar */}
-        <header className="lg:hidden flex items-center h-14 px-4 border-b border-[#d1dce8] bg-white shadow-sm">
-          <button onClick={() => setMobileOpen(o => !o)} className="text-slate-500">
-            <Menu size={22} />
+        <header className="lg:hidden flex items-center justify-between h-14 px-4 bg-white border-b border-slate-200 flex-shrink-0">
+          <button onClick={() => setMobileOpen(true)} className="text-slate-600 p-1">
+            <Menu size={22}/>
           </button>
-          <div className="flex items-center gap-2 ml-3">
+          <div className="flex items-center gap-2">
             {logoUrl
-              ? <img src={logoUrl} alt="Logo" className="h-7 w-7 object-contain rounded" />
-              : <Milk className="w-5 h-5 text-[#1d6faa]" />
+              ? <img src={logoUrl} alt="logo" className="h-7 w-7 object-contain rounded-lg"/>
+              : <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background:'#1b6ca8' }}>{appName[0]}</div>
             }
-            <span className="font-bold text-sm text-slate-800">{appName}</span>
+            <span className="font-bold text-slate-800 text-sm">{appName}</span>
           </div>
+          <div className="w-8"/>
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-          <motion.div
-            key={location.pathname}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <Outlet />
-          </motion.div>
+          <Outlet/>
         </main>
       </div>
     </div>

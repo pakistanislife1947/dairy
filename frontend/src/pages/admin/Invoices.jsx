@@ -3,6 +3,7 @@ import { FileText, Plus, Printer, CreditCard, Search, CheckCircle, Clock, AlertC
 import toast from 'react-hot-toast';
 import api from '../../api/client';
 import { PageHeader, Modal, EmptyState } from '../../components/ui';
+import { InvoicePrint } from '../../components/PrintSlip';
 
 const fmt = n => `Rs ${Number(n||0).toLocaleString('en-PK',{maximumFractionDigits:0})}`;
 const statusBadge = { unpaid:'badge-red', partial:'badge-yellow', paid:'badge-green', cancelled:'badge-gray' };
@@ -298,7 +299,7 @@ export default function Invoices() {
               <button onClick={()=>setModal('print')} className="btn-ghost text-sm"><Printer size={14}/>Print</button>
             </div>
 
-            <PrintView inv={detailData} onClose={()=>setModal('detail')}/>
+            <InvoicePrint data={detailData} onClose={()=>setModal('detail')}/>
 
             {/* Edit discount/tax */}
             {detailData.status !== 'paid' && (

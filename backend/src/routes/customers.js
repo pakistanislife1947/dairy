@@ -187,7 +187,29 @@ router.post('/sale',
         await db.query('UPDATE products SET stock_qty=GREATEST(0,stock_qty-$1) WHERE id=$2', [item.qty,item.product_id]);
       }
 
-      res.status(201).json({ success:true, data:{ receipt_id:r.insertId, receipt_no:no, total } });
+      // Auto-create invoice for cash-in
+      const invSeq = await db.queryOne('SELECT COALESCE(MAX(id),0) AS m FROM invoices');
+      const invNo  = `INV-${String(Number(invSeq?.m||0)+1).padStart(6,'0')}`;
+      const [invR] = await db.query(
+        `INSERT INTO invoices (invoice_no,customer_id,customer_type,customer_name,invoice_date,
+           subtotal,discount,tax_pct,tax_amount,total_amount,paid_amount,status,notes,created_by)
+         VALUES ($1,$2,$3,$4,CURRENT_DATE,$5,0,0,0,$6,$7,'paid',$8,$9) RETURNING id`,
+        [invNo, customer_id||null, customer_type,
+         customer_id ? (await db.queryOne('SELECT name FROM customers WHERE id=$1',[customer_id]))?.name : 'Walk-in',
+         total.toFixed(2), total.toFixed(2), total.toFixed(2),
+         notes||null, req.user.id]
+      );
+      // Insert invoice items
+      if (parseFloat(milk_qty)>0) {
+        await db.query('INSERT INTO invoice_items (invoice_id,description,qty,unit,rate,amount) VALUES ($1,$2,$3,$4,$5,$6)',
+          [invR.insertId, 'Milk', milk_qty, 'L', milk_rate, milkAmount.toFixed(2)]);
+      }
+      for (const item of items) {
+        await db.query('INSERT INTO invoice_items (invoice_id,description,qty,unit,rate,amount) VALUES ($1,$2,$3,$4,$5,$6)',
+          [invR.insertId, item.product_name, item.qty, item.unit||'pcs', item.price, (item.qty*item.price).toFixed(2)]);
+      }
+
+      res.status(201).json({ success:true, data:{ receipt_id:r.insertId, receipt_no:no, invoice_no:invNo, invoice_id:invR.insertId, total } });
     } catch (err) { next(err); }
   }
 );
