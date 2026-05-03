@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { TrendingUp, Plus, Building2, Home, Banknote, ShoppingBag, Printer, CheckCircle, Clock, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../api/client';
@@ -67,6 +68,18 @@ export default function Sales() {
   const [cashForm, setCashForm]   = useState({ milk_qty:'', milk_rate:'', items:[], sale_date:today() });
   const [walkinForm, setWalkinForm] = useState({ milk_qty:'', milk_rate:'', items:[], sale_date:today() });
   const [saleTab, setSaleTab]     = useState('milk');
+
+  const location = useLocation();
+
+  // Pre-select customer coming from Customers page
+  useEffect(() => {
+    if (location.state?.customer) {
+      const c = location.state.customer;
+      setSaleType(c.customer_type);
+      setSelCustomer(c);
+      window.history.replaceState({}, ''); // clear state
+    }
+  }, []);
 
   const loadData = async () => {
     setLoading(true);
@@ -173,16 +186,20 @@ export default function Sales() {
   };
 
   const ProductPicker = ({ setter }) => (
-    <div className="space-y-2">
-      <div className="grid grid-cols-2 gap-2">
-        {products.map(p=>(
-          <button key={p.id} type="button" onClick={()=>addItem(setter,p)}
-            className="flex justify-between items-center border border-slate-200 rounded-lg px-3 py-2 text-xs hover:border-[#1d6faa] transition">
-            <span>{p.name} <span className="text-slate-400">({p.stock_qty}{p.unit_type})</span></span>
-            <span className="font-mono text-[#1d6faa] font-semibold">{fmt(p.price)}</span>
-          </button>
-        ))}
-      </div>
+    <div className="grid grid-cols-2 gap-2">
+      {products.map(p=>(
+        <button key={p.id} type="button" onClick={()=>addItem(setter,p)}
+          className="flex flex-col items-start gap-1 border-2 border-slate-200 rounded-xl p-3 hover:border-[#1d6faa] hover:bg-blue-50 transition group">
+          <span className="font-semibold text-slate-700 text-sm group-hover:text-[#1d6faa]">{p.name}</span>
+          <div className="flex items-center justify-between w-full">
+            <span className="font-mono font-bold text-[#1d6faa] text-sm">{fmt(p.price)}</span>
+            <span className={`text-xs px-1.5 py-0.5 rounded-full ${parseFloat(p.stock_qty)<5?'bg-red-100 text-red-600':'bg-emerald-100 text-emerald-600'}`}>
+              {p.stock_qty} {p.unit_type}
+            </span>
+          </div>
+        </button>
+      ))}
+      {products.length===0 && <p className="col-span-2 text-center text-slate-400 text-sm py-4">No products. Add from Products page.</p>}
     </div>
   );
 
