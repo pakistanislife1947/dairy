@@ -26,7 +26,9 @@ import Reports    from './pages/admin/Reports';
 import AuditLogs  from './pages/admin/AuditLogs';
 import Settings   from './pages/admin/Settings';
 import Customers  from './pages/admin/Customers';
-import Products   from './pages/admin/Products';   // ← was missing
+import Products   from './pages/admin/Products';
+import Invoices   from './pages/admin/Invoices';
+import WalkIn     from './pages/admin/WalkIn';   // ← was missing
 
 import StaffDashboard from './pages/staff/StaffDashboard';
 import MilkEntry      from './pages/staff/MilkEntry';
@@ -64,7 +66,7 @@ export default function App() {
       <Routes>
         {/* Public */}
         <Route path="/login"           element={<LoginPage />} />
-        <Route path="/register"        element={<RegisterPage />} />
+        <!-- register disabled -->
         <Route path="/verify-email"    element={<VerifyEmailPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password"  element={<ResetPasswordPage />} />
@@ -86,7 +88,9 @@ export default function App() {
           <Route path="audit"      element={<AuditLogs />} />
           <Route path="settings"   element={<Settings />} />
           <Route path="customers"  element={<Customers />} />
-          <Route path="products"   element={<Products />} />  {/* ← moved inside, now auth-protected */}
+          <Route path="products"   element={<Products />} />
+          <Route path="invoices"   element={<Invoices />} />
+          <Route path="walkin"     element={<WalkIn />} />  {/* ← moved inside, now auth-protected */}
         </Route>
 
         {/* Staff */}

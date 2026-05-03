@@ -39,6 +39,9 @@ export default function HRPayroll() {
   const emptyForm = { name:'', phone:'', join_date:'', designation:'', department:'sales', base_salary:'', email:'', password:'', extra_permissions:[] };
   const [form, setForm]       = useState(emptyForm);
   const [advForm, setAdvForm] = useState({ amount:'', advance_date: new Date().toISOString().slice(0,10), notes:'' });
+  const [hrTab, setHrTab]     = useState('advance');
+  const [retForm, setRetForm] = useState({ amount:'', return_date: new Date().toISOString().slice(0,10), notes:'' });
+  const [adjForm, setAdjForm] = useState({ type:'bonus', amount:'', apply_month: new Date().toISOString().slice(0,7), reason:'' });
 
   const loadEmps = () => {
     setLoading(true);
@@ -82,6 +85,29 @@ export default function HRPayroll() {
       await api.post(`/hr/employees/${selEmp.id}/advances`, advForm);
       toast.success('Advance recorded — auto-deducted in next payroll');
       setModal(null); setAdvForm({ amount:'', advance_date:new Date().toISOString().slice(0,10), notes:'' }); loadEmps();
+    } catch (err) { toast.error(err.response?.data?.message||'Failed'); }
+    finally { setSaving(false); }
+  };
+
+  const onReturn = async (ev) => {
+    ev.preventDefault();
+    setSaving(true);
+    try {
+      await api.post(`/hr/employees/${selEmp.id}/advance-return`, retForm);
+      toast.success('Advance return recorded');
+      setModal(null); setRetForm({ amount:'', return_date:new Date().toISOString().slice(0,10), notes:'' }); loadEmps();
+    } catch (err) { toast.error(err.response?.data?.message||'Failed'); }
+    finally { setSaving(false); }
+  };
+
+  const onAdjustment = async (ev) => {
+    ev.preventDefault();
+    if (!adjForm.amount) return toast.error('Amount required');
+    setSaving(true);
+    try {
+      await api.post(`/hr/employees/${selEmp.id}/adjustment`, adjForm);
+      toast.success(`${adjForm.type==='bonus'?'Bonus':'Deduction'} recorded for ${adjForm.apply_month}`);
+      setModal(null); setAdjForm({ type:'bonus', amount:'', apply_month:new Date().toISOString().slice(0,7), reason:'' });
     } catch (err) { toast.error(err.response?.data?.message||'Failed'); }
     finally { setSaving(false); }
   };
@@ -273,23 +299,47 @@ export default function HRPayroll() {
       </Modal>
 
       {/* Advance Modal */}
-      <Modal isOpen={modal==='advance'} onClose={()=>setModal(null)} title={`Advance — ${selEmp?.name}`} size="sm">
-        <form onSubmit={onAdvance} className="space-y-4">
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
+      <Modal isOpen={modal==='advance'} onClose={()=>setModal(null)} title={`HR Actions — ${selEmp?.name}`} size="sm">
+        <div className="space-y-4">
+          <div className="flex gap-2 mb-2">
+            {['advance','return','adjustment'].map(t=>(
+              <button key={t} type="button" onClick={()=>setHrTab(t)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition ${hrTab===t?'bg-[#1d6faa] text-white':'bg-slate-100 text-slate-500'}`}>{t==='advance'?'Give Advance':t==='return'?'Return Advance':'Bonus/Deduction'}</button>
+            ))}
+          </div>
+        <form onSubmit={hrTab==='advance'?onAdvance:hrTab==='return'?onReturn:onAdjustment} className="space-y-4">
+          {hrTab==='advance' && <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
             <p className="font-semibold">Pending: {fmt(selEmp?.pending_advance)}</p>
             <p className="text-xs mt-1">Auto-deducted in next payroll run.</p>
-          </div>
+          </div>}
           <div><label className="label">Amount (PKR) *</label>
             <input type="number" step="100" value={advForm.amount} onChange={e=>setAdvForm(p=>({...p,amount:e.target.value}))} className="input font-mono" placeholder="5000"/></div>
           <div><label className="label">Date</label>
             <input type="date" value={advForm.advance_date} onChange={e=>setAdvForm(p=>({...p,advance_date:e.target.value}))} className="input"/></div>
           <div><label className="label">Notes</label>
             <input value={advForm.notes} onChange={e=>setAdvForm(p=>({...p,notes:e.target.value}))} className="input"/></div>
+          {hrTab==='return' && <>
+            <div><label className="label">Return Amount (PKR)</label><input type="number" step="100" value={retForm.amount} onChange={e=>setRetForm(p=>({...p,amount:e.target.value}))} className="input font-mono"/></div>
+            <div><label className="label">Date</label><input type="date" value={retForm.return_date} onChange={e=>setRetForm(p=>({...p,return_date:e.target.value}))} className="input"/></div>
+            <div><label className="label">Notes</label><input value={retForm.notes} onChange={e=>setRetForm(p=>({...p,notes:e.target.value}))} className="input"/></div>
+          </>}
+          {hrTab==='adjustment' && <>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={()=>setAdjForm(p=>({...p,type:'bonus'}))}
+                className={`py-2 rounded-xl border-2 text-sm font-semibold transition ${adjForm.type==='bonus'?'border-emerald-500 bg-emerald-50 text-emerald-700':'border-slate-200 text-slate-500'}`}>Bonus ➕</button>
+              <button type="button" onClick={()=>setAdjForm(p=>({...p,type:'deduction'}))}
+                className={`py-2 rounded-xl border-2 text-sm font-semibold transition ${adjForm.type==='deduction'?'border-red-500 bg-red-50 text-red-700':'border-slate-200 text-slate-500'}`}>Deduction ➖</button>
+            </div>
+            <div><label className="label">Amount (PKR)</label><input type="number" step="100" value={adjForm.amount} onChange={e=>setAdjForm(p=>({...p,amount:e.target.value}))} className="input font-mono"/></div>
+            <div><label className="label">Apply Month</label><input type="month" value={adjForm.apply_month} onChange={e=>setAdjForm(p=>({...p,apply_month:e.target.value}))} className="input"/></div>
+            <div><label className="label">Reason</label><input value={adjForm.reason} onChange={e=>setAdjForm(p=>({...p,reason:e.target.value}))} className="input"/></div>
+          </>}
           <div className="flex justify-end gap-3">
             <button type="button" onClick={()=>setModal(null)} className="btn-ghost">Cancel</button>
-            <button type="submit" disabled={saving} className="btn-primary">{saving?'…':'Record Advance'}</button>
+            <button type="submit" disabled={saving} className="btn-primary">{saving?'…':hrTab==='advance'?'Record Advance':hrTab==='return'?'Record Return':'Save'}</button>
           </div>
         </form>
+        </div>
       </Modal>
 
       <ConfirmDialog isOpen={!!fireTarget} onClose={()=>setFire(null)} onConfirm={fireEmp}

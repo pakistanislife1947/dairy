@@ -10,7 +10,7 @@ const TYPES = {
   bulk:      { label:'Bulk',      icon:Building2,   color:'badge-blue',   desc:'Credit, large qty' },
   household: { label:'Household', icon:Home,         color:'badge-green',  desc:'Monthly billing' },
   cash:      { label:'Cash',      icon:Banknote,     color:'badge-yellow', desc:'Pay immediately' },
-  walkin:    { label:'Walk-in',   icon:ShoppingBag,  color:'badge-gray',   desc:'No details needed' },
+
 };
 
 const defaultForm = { name:'', phone:'', address:'', customer_type:'bulk', company_name:'', cnic:'', daily_qty:'', rate_per_liter:'', credit_limit:'', payment_terms:'monthly' };

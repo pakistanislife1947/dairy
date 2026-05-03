@@ -122,6 +122,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/customers', require('./src/routes/customers'));
 app.use('/api/products',  require('./src/routes/products'));
 app.use('/api/receipts',  require('./src/routes/receipts'));
+app.use('/api/invoices',  require('./src/routes/invoices'));
 
 // ── Health check ───────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
