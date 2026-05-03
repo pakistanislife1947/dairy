@@ -2,7 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import {
-  LayoutDashboard, Users, Milk, Package, FileText, TrendingUp,
+  LayoutDashboard, Users, Milk, Package, UserCheck2, FileText, TrendingUp,
   Truck, Store, UserCheck, Receipt, BarChart3, Shield,
   LogOut, ChevronLeft, ChevronRight, Menu, Settings,
 } from 'lucide-react';
@@ -14,13 +14,13 @@ const NAV = [
   { to: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: 'farmers',   icon: Users,           label: 'Collection Centre' },
   { to: 'milk',      icon: Milk,            label: 'Milk Collection' },
-  { to: 'billing',   icon: FileText,        label: 'Billing' },
-  { to: 'customers', icon: UserCheck,        label: 'Customers' },
-  { to: 'products',  icon: Package,         label: 'Products' },
+  { to: 'customers', icon: UserCheck,       label: 'Customers' },
   { to: 'sales',     icon: TrendingUp,      label: 'Sales' },
+  { to: 'products',  icon: Package,         label: 'Products' },
+  { to: 'billing',   icon: FileText,        label: 'Billing' },
   { to: 'vehicles',  icon: Truck,           label: 'Vehicles' },
   { to: 'shops',     icon: Store,           label: 'Shops' },
-  { to: 'hr',        icon: UserCheck,       label: 'HR & Payroll' },
+  { to: 'hr',        icon: UserCheck2,      label: 'HR & Payroll' },
   { to: 'expenses',  icon: Receipt,         label: 'Expenses' },
   { to: 'reports',   icon: BarChart3,       label: 'Reports' },
   { to: 'audit',     icon: Shield,          label: 'Audit Logs' },

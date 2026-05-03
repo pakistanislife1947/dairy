@@ -121,6 +121,7 @@ const settingsRoutes = require('./src/routes/settings');
 app.use('/api/settings', settingsRoutes);
 app.use('/api/customers', require('./src/routes/customers'));
 app.use('/api/products',  require('./src/routes/products'));
+app.use('/api/receipts',  require('./src/routes/receipts'));
 
 // ── Health check ───────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
