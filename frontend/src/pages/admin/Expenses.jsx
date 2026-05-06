@@ -1,86 +1,85 @@
 import { useState, useEffect } from 'react';
-import { Receipt, Plus, Trash2, ChevronDown } from 'lucide-react';
+import { Receipt, Plus, Trash2, TrendingDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../api/client';
-import { PageHeader, Modal, SkeletonRow, EmptyState, ConfirmDialog } from '../../components/ui';
+import { PageHeader, Modal, EmptyState, ConfirmDialog } from '../../components/ui';
 
 const fmt = n => `Rs ${Number(n||0).toLocaleString('en-PK',{maximumFractionDigits:0})}`;
+
+const CATEGORY_COLORS = {
+  'Diesel':'badge-yellow','Vehicle Service':'badge-blue','Shop Rent':'badge-gray',
+  'Vehicle Rent':'badge-gray','Salaries':'badge-green','Advance Salary':'badge-yellow',
+  'Utilities':'badge-blue','Miscellaneous':'badge-gray','Rent':'badge-gray',
+};
 
 export default function Expenses() {
   const [expenses, setExpenses]     = useState([]);
   const [categories, setCategories] = useState([]);
-  const [rentRefs, setRentRefs]     = useState([]);   // shops + rented vehicles
-  const [vehicles, setVehicles]     = useState([]);   // for diesel
+  const [rentRefs, setRentRefs]     = useState([]);
+  const [vehicles, setVehicles]     = useState([]);
   const [loading, setLoading]       = useState(true);
   const [modal, setModal]           = useState(false);
   const [saving, setSaving]         = useState(false);
   const [delTarget, setDel]         = useState(null);
   const [filters, setFilters]       = useState({ category_id:'', date_from:'', date_to:'' });
 
-  // Form state
+  const today = new Date().toISOString().slice(0,10);
   const [form, setForm] = useState({
-    category_id: '', expense_date: new Date().toISOString().slice(0,10),
-    amount: '', description: '', reference_type: '', reference_id: ''
+    category_id:'', expense_date: today,
+    amount:'', description:'', reference_type:'', reference_id:''
   });
 
-  const selectedCat = categories.find(c => String(c.id) === String(form.category_id));
-  const catName = selectedCat?.name?.toLowerCase() || '';
-  const isRent    = catName.includes('rent');
-  const isDiesel  = catName.includes('diesel');
-  const isVehRent = catName.includes('vehicle rent');
-  const isShopRent = catName.includes('shop rent');
+  const selectedCat  = categories.find(c=>String(c.id)===String(form.category_id));
+  const catName      = selectedCat?.name?.toLowerCase()||'';
+  const isShopRent   = catName.includes('shop rent');
+  const isVehRent    = catName.includes('vehicle rent');
+  const isDiesel     = catName.includes('diesel');
+  const isRent       = isShopRent || isVehRent;
+
+  const shopRefs    = rentRefs.filter(r=>r.type==='shop');
+  const vehicleRentRefs = rentRefs.filter(r=>r.type==='vehicle');
 
   const load = () => {
     setLoading(true);
-    const q = new URLSearchParams(Object.fromEntries(Object.entries(filters).filter(([,v])=>v))).toString();
+    const q = new URLSearchParams(Object.fromEntries(Object.entries(filters).filter(([,v])=>v)));
     Promise.all([
-      api.get(`/expenses?${q}&limit=100`),
+      api.get(`/expenses?${q}&limit=200`),
       api.get('/expenses/categories'),
       api.get('/expenses/rent-refs'),
       api.get('/vehicles'),
-    ]).then(([e, c, r, v]) => {
-      setExpenses(e.data.data || []);
-      setCategories(c.data.data || []);
-      setRentRefs(r.data.data || []);
-      setVehicles(v.data.data || []);
-    }).finally(() => setLoading(false));
+    ]).then(([e,c,r,v])=>{
+      setExpenses(e.data.data||[]);
+      setCategories(c.data.data||[]);
+      setRentRefs(r.data.data||[]);
+      setVehicles(v.data.data||[]);
+    }).finally(()=>setLoading(false));
   };
+  useEffect(()=>{ load(); },[]);
 
-  useEffect(() => { load(); }, []);
-
-  // When category changes, reset reference and auto-select if only 1 option
   const handleCatChange = (catId) => {
-    const cat = categories.find(c => String(c.id) === String(catId));
-    const name = cat?.name?.toLowerCase() || '';
-    let ref_type = '', ref_id = '', amount = form.amount;
-
-    setForm(p => ({ ...p, category_id: catId, reference_type: ref_type, reference_id: ref_id, amount }));
+    setForm(p=>({ ...p, category_id:catId, reference_type:'', reference_id:'', description:'' }));
   };
 
-  // When reference (shop/vehicle) selected, auto-fill amount
   const handleRefChange = (refId) => {
-    const ref = rentRefs.find(r => String(r.id) === String(refId) &&
-      (isShopRent ? r.type === 'shop' : r.type === 'vehicle'));
-    setForm(p => ({
-      ...p,
-      reference_id: refId,
-      reference_type: isShopRent ? 'shop' : 'vehicle',
+    const refs = isShopRent ? shopRefs : vehicleRentRefs;
+    const ref  = refs.find(r=>String(r.id)===refId);
+    setForm(p=>({
+      ...p, reference_id:refId,
+      reference_type: isShopRent?'shop':'vehicle',
       amount: ref?.amount || p.amount,
-      description: ref ? `${isShopRent ? 'Shop' : 'Vehicle'} rent: ${ref.name}` : p.description,
+      description: ref ? `${isShopRent?'Shop':'Vehicle'} rent: ${ref.name}` : p.description,
     }));
   };
 
   const handleVehicleChange = (vId) => {
-    const v = vehicles.find(v => String(v.id) === String(vId));
-    setForm(p => ({
-      ...p,
-      reference_id: vId,
-      reference_type: 'vehicle',
+    const v = vehicles.find(v=>String(v.id)===vId);
+    setForm(p=>({
+      ...p, reference_id:vId, reference_type:'vehicle',
       description: v ? `Diesel: ${v.reg_number}` : p.description,
     }));
   };
 
-  const onExpense = async (e) => {
+  const onSubmit = async (e) => {
     e.preventDefault();
     if (!form.category_id || !form.expense_date || !form.amount) return toast.error('Fill required fields');
     setSaving(true);
@@ -88,55 +87,55 @@ export default function Expenses() {
       await api.post('/expenses', form);
       toast.success('Expense recorded');
       setModal(false);
-      setForm({ category_id:'', expense_date: new Date().toISOString().slice(0,10), amount:'', description:'', reference_type:'', reference_id:'' });
+      setForm({ category_id:'', expense_date:today, amount:'', description:'', reference_type:'', reference_id:'' });
       load();
-    } catch (err) { toast.error(err.response?.data?.message || 'Failed'); }
-    finally { setSaving(false); }
+    } catch(err){ toast.error(err.response?.data?.message||'Failed'); }
+    finally{ setSaving(false); }
   };
 
-  const deleteExpense = async () => {
-    try { await api.delete(`/expenses/${delTarget.id}`); toast.success('Deleted'); load(); }
-    catch { toast.error('Failed'); }
+  const deleteExp = async () => {
+    try{ await api.delete(`/expenses/${delTarget.id}`); toast.success('Deleted'); load(); }
+    catch{ toast.error('Failed'); } finally{ setDel(null); }
   };
 
-  const shopRefs    = rentRefs.filter(r => r.type === 'shop');
-  const vehicleRentRefs = rentRefs.filter(r => r.type === 'vehicle');
-  const totalShown  = expenses.reduce((s, e) => s + parseFloat(e.amount||0), 0);
+  const totalShown  = expenses.reduce((s,e)=>s+parseFloat(e.amount||0),0);
+
+  // Category totals for top cards (top 4)
+  const catTotals = categories.slice(0,4);
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="Expenses" subtitle="Centralized expense ledger"
-        action={<button onClick={() => setModal(true)} className="btn-primary"><Plus size={16}/>Add Expense</button>} />
+    <div className="space-y-5">
+      <PageHeader title="Expenses" subtitle="Track all business expenses"
+        action={<button onClick={()=>setModal(true)} className="btn-primary"><Plus size={16}/>Add Expense</button>}/>
 
       {/* Category summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {categories.slice(0,4).map((c,i) => (
-          <div key={i} className="card">
-            <p className="text-xs text-slate-500 truncate">{c.name}</p>
-            <p className="font-bold text-lg font-mono text-slate-800 mt-1">{fmt(c.total_spent)}</p>
-            <p className="text-xs text-slate-400">{c.entry_count} entries</p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {catTotals.map(c=>(
+          <div key={c.id} className="card">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-slate-500 truncate flex-1 mr-2">{c.name}</p>
+              <span className={`badge text-xs ${CATEGORY_COLORS[c.name]||'badge-gray'}`}>{c.entry_count}</span>
+            </div>
+            <p className="font-bold text-lg text-red-500 font-mono">{fmt(c.total_spent)}</p>
           </div>
         ))}
       </div>
 
-      {/* Filters */}
+      {/* Filter bar */}
       <div className="card flex flex-wrap gap-3 items-end">
         <div><label className="label">Category</label>
-          <select className="input" value={filters.category_id}
-            onChange={e=>setFilters(f=>({...f,category_id:e.target.value}))}>
+          <select className="input" value={filters.category_id} onChange={e=>setFilters(p=>({...p,category_id:e.target.value}))}>
             <option value="">All Categories</option>
             {categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
           </select></div>
         <div><label className="label">From</label>
-          <input type="date" className="input" value={filters.date_from}
-            onChange={e=>setFilters(f=>({...f,date_from:e.target.value}))}/></div>
+          <input type="date" className="input" value={filters.date_from} onChange={e=>setFilters(p=>({...p,date_from:e.target.value}))}/></div>
         <div><label className="label">To</label>
-          <input type="date" className="input" value={filters.date_to}
-            onChange={e=>setFilters(f=>({...f,date_to:e.target.value}))}/></div>
+          <input type="date" className="input" value={filters.date_to} onChange={e=>setFilters(p=>({...p,date_to:e.target.value}))}/></div>
         <button onClick={load} className="btn-primary">Apply</button>
         <div className="ml-auto text-right">
-          <p className="text-xs text-slate-400">Total shown</p>
-          <p className="font-bold text-red-500 font-mono text-lg">{fmt(totalShown)}</p>
+          <p className="text-xs text-slate-400">Filtered Total</p>
+          <p className="font-bold text-red-500 font-mono text-xl">{fmt(totalShown)}</p>
         </div>
       </div>
 
@@ -145,12 +144,14 @@ export default function Expenses() {
         <table className="table-auto w-full">
           <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Amount</th><th>By</th><th></th></tr></thead>
           <tbody>
-            {loading ? [...Array(6)].map((_,i)=><SkeletonRow key={i} cols={6}/>) :
-             expenses.length===0 ? <tr><td colSpan={6}><EmptyState icon={Receipt} title="No expenses" description="Add your first expense"/></td></tr> :
-             expenses.map(e => (
+            {loading ? [...Array(5)].map((_,i)=>(
+              <tr key={i}><td colSpan={6} className="py-2"><div className="h-8 bg-slate-100 rounded mx-4 animate-pulse"/></td></tr>
+            )) : expenses.length===0 ? (
+              <tr><td colSpan={6}><EmptyState icon={TrendingDown} title="No expenses" description="Add your first expense"/></td></tr>
+            ) : expenses.map(e=>(
               <tr key={e.id}>
-                <td className="font-mono text-xs">{e.expense_date?.slice(0,10)}</td>
-                <td><span className="badge badge-blue">{e.category_name}</span></td>
+                <td className="font-mono text-xs text-slate-500">{e.expense_date?.slice(0,10)}</td>
+                <td><span className={`badge text-xs ${CATEGORY_COLORS[e.category_name]||'badge-gray'}`}>{e.category_name}</span></td>
                 <td className="text-sm text-slate-500 max-w-xs truncate">{e.description||'—'}</td>
                 <td><span className="font-mono text-red-500 font-semibold">{fmt(e.amount)}</span></td>
                 <td className="text-xs text-slate-400">{e.created_by_name}</td>
@@ -161,40 +162,34 @@ export default function Expenses() {
         </table>
       </div>
 
-      {/* Add Expense Modal */}
+      {/* Add Modal */}
       <Modal isOpen={modal} onClose={()=>setModal(false)} title="Add Expense" size="sm">
-        <form onSubmit={onExpense} className="space-y-4">
-
+        <form onSubmit={onSubmit} className="space-y-4">
           <div><label className="label">Category *</label>
             <select value={form.category_id} onChange={e=>handleCatChange(e.target.value)} className="input">
               <option value="">Select category…</option>
               {categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
             </select></div>
 
-          {/* Diesel — pick vehicle */}
           {isDiesel && (
             <div><label className="label">Vehicle (optional)</label>
               <select value={form.reference_id} onChange={e=>handleVehicleChange(e.target.value)} className="input">
                 <option value="">Select vehicle…</option>
-                {vehicles.map(v=><option key={v.id} value={v.id}>{v.reg_number} — {v.make_model||''}</option>)}
+                {vehicles.map(v=><option key={v.id} value={v.id}>{v.reg_number}{v.make_model?` — ${v.make_model}`:''}</option>)}
               </select></div>
           )}
-
-          {/* Shop Rent — pick shop */}
           {isShopRent && (
             <div><label className="label">Shop *</label>
               <select value={form.reference_id} onChange={e=>handleRefChange(e.target.value)} className="input">
                 <option value="">Select shop…</option>
-                {shopRefs.map(s=><option key={s.id} value={s.id}>{s.name} — {fmt(s.amount)}/month</option>)}
+                {shopRefs.map(s=><option key={s.id} value={s.id}>{s.name} — {fmt(s.amount)}/mo</option>)}
               </select></div>
           )}
-
-          {/* Vehicle Rent — pick vehicle */}
           {isVehRent && (
             <div><label className="label">Rented Vehicle *</label>
               <select value={form.reference_id} onChange={e=>handleRefChange(e.target.value)} className="input">
                 <option value="">Select vehicle…</option>
-                {vehicleRentRefs.map(v=><option key={v.id} value={v.id}>{v.name} — {fmt(v.amount)}/month</option>)}
+                {vehicleRentRefs.map(v=><option key={v.id} value={v.id}>{v.name} — {fmt(v.amount)}/mo</option>)}
               </select></div>
           )}
 
@@ -208,7 +203,8 @@ export default function Expenses() {
           </div>
 
           <div><label className="label">Description</label>
-            <input value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))}
+            <input value={form.description}
+              onChange={e=>setForm(p=>({...p,description:e.target.value}))}
               className="input" placeholder="Optional details…"/></div>
 
           <div className="flex justify-end gap-3">
@@ -218,7 +214,7 @@ export default function Expenses() {
         </form>
       </Modal>
 
-      <ConfirmDialog isOpen={!!delTarget} onClose={()=>setDel(null)} onConfirm={deleteExpense}
+      <ConfirmDialog isOpen={!!delTarget} onClose={()=>setDel(null)} onConfirm={deleteExp}
         title="Delete Expense" message={`Delete ${delTarget?.category_name} of ${fmt(delTarget?.amount)}?`}/>
     </div>
   );
