@@ -115,7 +115,7 @@ export default function MilkEntry() {
       {/* Last saved banner */}
       
         {lastSaved && (
-          <div}}}
+          <div
             className="flex items-start gap-3 p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20"
           >
             <CheckCircle size={18} className="text-emerald-400 flex-shrink-0 mt-0.5" />
