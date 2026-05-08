@@ -27,7 +27,7 @@ export default function StaffDashboard() {
   return (
     <div className="space-y-5">
       {/* Greeting */}
-      <div}} className="pt-2">
+      <div className="pt-2">
         <h1 className="text-xl font-bold text-slate-800">{greeting}, {user?.name?.split(' ')[0]}! 👋</h1>
         <p className="text-sm text-muted mt-1">{format(new Date(), 'EEEE, dd MMM yyyy')}</p>
       </div>
