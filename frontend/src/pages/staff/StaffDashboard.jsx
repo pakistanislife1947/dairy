@@ -67,7 +67,7 @@ export default function StaffDashboard() {
 
       {/* Summary card */}
       {(morning || evening) && !loading && (
-        <div}}}
+        <div
           className="card bg-brand-900/30 border-brand-500/20"
         >
           <div className="flex items-center gap-3 mb-3">
