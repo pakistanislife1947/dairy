@@ -24,7 +24,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="min-h-screen bg-surface flex items-center justify-center p-6">
-      <div}} className="w-full max-w-sm">
+      <div className="w-full max-w-sm">
         {sent ? (
           <div className="card text-center space-y-4">
             <Mail size={36} className="text-brand-400 mx-auto" />
