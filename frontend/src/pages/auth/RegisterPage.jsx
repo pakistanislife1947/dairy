@@ -32,7 +32,7 @@ export default function RegisterPage() {
   if (done) {
     return (
       <div className="min-h-screen bg-surface flex items-center justify-center p-6">
-        <div}}
+        <div
           className="card max-w-sm w-full text-center space-y-4"
         >
           <div className="w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto">
