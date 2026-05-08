@@ -1,58 +1,47 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Droplets, Milk, LayoutDashboard, LogOut } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Milk, LayoutDashboard, LogOut, Menu, X } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
+import api from '../../api/client';
 import toast from 'react-hot-toast';
 
 export default function StaffLayout() {
-  const { user, logout } = useAuthStore();
-  const navigate = useNavigate();
-
-  const handleLogout = async () => {
-    await logout();
-    toast.success('Logged out');
-    navigate('/login');
-  };
-
+  const {user,logout}=useAuthStore(); const navigate=useNavigate();
+  const [logo,setLogo]=useState(''); const [appName,setAppName]=useState('Brimi Dairy');
+  const [open,setOpen]=useState(false);
+  useEffect(()=>{api.get('/settings').then(({data})=>{if(data.settings?.logo_url)setLogo(data.settings.logo_url);if(data.settings?.app_name)setAppName(data.settings.app_name);}).catch(()=>{});},[]);
+  const handleLogout=async()=>{await logout();toast.success('Logged out');navigate('/login');};
+  const NAV=[{to:'/staff',icon:LayoutDashboard,label:'Dashboard',end:true},{to:'/staff/milk',icon:Milk,label:'Milk Entry'}];
   return (
-    <div className="min-h-screen bg-[#f0f4f8] flex flex-col">
-      {/* Top bar */}
-      <header className="bg-white border-b border-[#d1dce8] px-4 py-3 flex items-center justify-between sticky top-0 z-20">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-brand-600 flex items-center justify-center">
-            <Droplets className="w-4 h-4 text-white" />
-          </div>
-          <div>
-            <p className="font-bold text-sm text-slate-800 leading-none">Dairy ERP</p>
-            <p className="text-xs text-muted leading-none mt-0.5">{user?.name}</p>
-          </div>
+    <div className="min-h-screen flex flex-col" style={{background:'#f0f4f8'}}>
+      <header className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between sticky top-0 z-20 shadow-sm">
+        <div className="flex items-center gap-3">
+          {logo?<img src={logo} alt="logo" className="h-8 w-8 object-contain rounded-lg"/>
+            :<div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm" style={{background:'#1b6ca8'}}>{appName[0]}</div>}
+          <div><p className="font-bold text-slate-800 text-sm">{appName}</p><p className="text-xs text-slate-400">Staff Portal</p></div>
         </div>
-        <button onClick={handleLogout} className="text-muted hover:text-red-400 transition-colors p-2">
-          <LogOut size={18} />
-        </button>
+        <nav className="hidden sm:flex items-center gap-1">
+          {NAV.map(({to,icon:Icon,label,end})=>(
+            <NavLink key={to} to={to} end={end} className={({isActive})=>`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition ${isActive?'bg-[#1b6ca8] text-white':'text-slate-600 hover:bg-slate-100'}`}>
+              <Icon size={16}/>{label}
+            </NavLink>
+          ))}
+        </nav>
+        <div className="flex items-center gap-2">
+          <button onClick={handleLogout} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition">
+            <LogOut size={15}/><span className="hidden sm:inline">Logout</span>
+          </button>
+          <button onClick={()=>setOpen(p=>!p)} className="sm:hidden p-2 text-slate-600">{open?<X size={20}/>:<Menu size={20}/>}</button>
+        </div>
       </header>
-
-      {/* Content */}
-      <main className="flex-1 px-4 py-5 max-w-lg mx-auto w-full">
-        <Outlet />
-      </main>
-
-      {/* Bottom nav */}
-      <nav className="bg-white border-t border-[#d1dce8] px-6 py-3 flex items-center justify-around sticky bottom-0">
-        {[
-          { to: '/staff',      icon: LayoutDashboard, label: 'Home', end: true },
-          { to: '/staff/milk', icon: Milk,            label: 'Milk Entry' },
-        ].map(({ to, icon: Icon, label, end }) => (
-          <NavLink key={to} to={to} end={end}
-            className={({ isActive }) =>
-              `flex flex-col items-center gap-1 px-5 py-1 rounded-xl transition-all
-              ${isActive ? 'text-brand-400' : 'text-muted hover:text-slate-600'}`
-            }
-          >
-            <Icon size={22} />
-            <span className="text-xs font-medium">{label}</span>
+      {open&&<div className="sm:hidden bg-white border-b border-slate-200 px-4 py-2 space-y-1">
+        {NAV.map(({to,icon:Icon,label,end})=>(
+          <NavLink key={to} to={to} end={end} onClick={()=>setOpen(false)} className={({isActive})=>`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition ${isActive?'bg-[#1b6ca8] text-white':'text-slate-600 hover:bg-slate-100'}`}>
+            <Icon size={16}/>{label}
           </NavLink>
         ))}
-      </nav>
+      </div>}
+      <main className="flex-1 p-4 sm:p-6 max-w-2xl mx-auto w-full"><Outlet/></main>
     </div>
   );
 }

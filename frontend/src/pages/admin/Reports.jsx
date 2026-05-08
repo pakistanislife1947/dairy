@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import api from '../../api/client';
 import { PageHeader, Skeleton } from '../../components/ui';
 import { jsPDF } from 'jspdf';
+import { useLogo } from '../../components/PrintSlip';
 import autoTable from 'jspdf-autotable';
 
 const fmtPKR = n => `Rs ${Number(n || 0).toLocaleString('en-PK', { maximumFractionDigits: 0 })}`;
@@ -15,6 +16,7 @@ const fmtN   = n => Number(n || 0).toLocaleString('en-PK', { maximumFractionDigi
 export default function Reports() {
   const [month, setMonth]   = useState(format(new Date(), 'yyyy-MM'));
   const [data, setData]     = useState(null);
+  const { logo, appName } = useLogo();
   const [loading, setLoading] = useState(false);
 
   const load = async () => {
