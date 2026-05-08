@@ -189,7 +189,7 @@ export default function MilkEntry() {
           )}
           {/* Farmer pricing info */}
           {selectedFarmer && (
-            <div}}
+            <div
               className="mt-2 px-3 py-2 rounded-xl bg-white border border-[#d1dce8] text-xs text-muted flex gap-4"
             >
               <span>Base: <strong className="text-slate-600">Rs {selectedFarmer.base_rate}/L</strong></span>
