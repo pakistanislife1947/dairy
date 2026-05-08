@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { BarChart3, Download, TrendingUp, TrendingDown, DollarSign, Droplets } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from 'recharts';
 import toast from 'react-hot-toast';
@@ -171,7 +170,7 @@ export default function Reports() {
       </div>
 
       {data && (
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+        <div}} className="space-y-6">
           {/* KPI Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
@@ -260,7 +259,7 @@ export default function Reports() {
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
       )}
 
       {!data && !loading && (

@@ -26,7 +26,6 @@ export function CardSkeleton() {
 }
 
 // ── StatCard ───────────────────────────────────────────────
-import { motion } from 'framer-motion';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 
 export function StatCard({ title, value, sub, icon: Icon, color = 'brand', trend, loading }) {
@@ -64,7 +63,6 @@ export function StatCard({ title, value, sub, icon: Icon, color = 'brand', trend
 }
 
 // ── Modal ──────────────────────────────────────────────────
-import { AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 
 export function Modal({ isOpen, onClose, title, children, size = 'md' }) {

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { Mail, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -25,7 +24,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="min-h-screen bg-surface flex items-center justify-center p-6">
-      <motion.div initial={{ opacity:0, y:16 }} animate={{ opacity:1, y:0 }} className="w-full max-w-sm">
+      <div}} className="w-full max-w-sm">
         {sent ? (
           <div className="card text-center space-y-4">
             <Mail size={36} className="text-brand-400 mx-auto" />
@@ -63,7 +62,7 @@ export default function ForgotPasswordPage() {
             </p>
           </>
         )}
-      </motion.div>
+      </div>
     </div>
   );
 }

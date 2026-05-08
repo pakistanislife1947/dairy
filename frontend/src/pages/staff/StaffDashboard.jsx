@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { Droplets, Sun, Moon, TrendingUp, Users } from 'lucide-react';
 import { format } from 'date-fns';
 import api from '../../api/client';
@@ -28,10 +27,10 @@ export default function StaffDashboard() {
   return (
     <div className="space-y-5">
       {/* Greeting */}
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="pt-2">
+      <div}} className="pt-2">
         <h1 className="text-xl font-bold text-slate-800">{greeting}, {user?.name?.split(' ')[0]}! 👋</h1>
         <p className="text-sm text-muted mt-1">{format(new Date(), 'EEEE, dd MMM yyyy')}</p>
-      </motion.div>
+      </div>
 
       {/* Today's shifts */}
       <div className="grid grid-cols-2 gap-3">
@@ -39,11 +38,8 @@ export default function StaffDashboard() {
           { shift: 'Morning', icon: Sun, data: morning, color: 'amber' },
           { shift: 'Evening', icon: Moon, data: evening, color: 'brand' },
         ].map(({ shift, icon: Icon, data, color }) => (
-          <motion.div
-            key={shift}
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.1 }}
+          <div
+            key={shift}}}}
             className="card"
           >
             <div className={`w-9 h-9 rounded-xl mb-3 flex items-center justify-center
@@ -65,16 +61,13 @@ export default function StaffDashboard() {
             ) : (
               <p className="text-sm text-muted">No records yet</p>
             )}
-          </motion.div>
+          </div>
         ))}
       </div>
 
       {/* Summary card */}
       {(morning || evening) && !loading && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+        <div}}}
           className="card bg-brand-900/30 border-brand-500/20"
         >
           <div className="flex items-center gap-3 mb-3">
@@ -101,7 +94,7 @@ export default function StaffDashboard() {
               </p>
             </div>
           </div>
-        </motion.div>
+        </div>
       )}
 
       {/* Quick tip */}

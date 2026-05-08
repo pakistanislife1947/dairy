@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { CheckCircle, XCircle, Loader } from 'lucide-react';
 import api from '../../api/client';
 
@@ -19,7 +18,7 @@ export default function VerifyEmailPage() {
 
   return (
     <div className="min-h-screen bg-surface flex items-center justify-center p-6">
-      <motion.div initial={{ opacity:0, y:16 }} animate={{ opacity:1, y:0 }}
+      <div}}
         className="card max-w-sm w-full text-center space-y-4">
         {status === 'loading' && <Loader  size={36} className="text-brand-400 animate-spin mx-auto" />}
         {status === 'success' && <CheckCircle size={36} className="text-emerald-400 mx-auto" />}
@@ -31,7 +30,7 @@ export default function VerifyEmailPage() {
         {status !== 'loading' && (
           <Link to="/login" className="btn-primary inline-flex justify-center w-full">Go to Login</Link>
         )}
-      </motion.div>
+      </div>
     </div>
   );
 }

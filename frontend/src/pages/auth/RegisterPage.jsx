@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { Eye, EyeOff, Droplets, UserPlus, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -33,9 +32,7 @@ export default function RegisterPage() {
   if (done) {
     return (
       <div className="min-h-screen bg-surface flex items-center justify-center p-6">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
+        <div}}
           className="card max-w-sm w-full text-center space-y-4"
         >
           <div className="w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto">
@@ -48,16 +45,14 @@ export default function RegisterPage() {
           <Link to="/login" className="btn-primary inline-flex justify-center w-full">
             Back to Login
           </Link>
-        </motion.div>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-surface flex items-center justify-center p-6">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div}}
         className="w-full max-w-sm"
       >
         <div className="flex items-center gap-2 mb-8">
@@ -134,7 +129,7 @@ export default function RegisterPage() {
           Already have an account?{' '}
           <Link to="/login" className="text-brand-400 hover:text-brand-300 font-medium">Sign in</Link>
         </p>
-      </motion.div>
+      </div>
     </div>
   );
 }

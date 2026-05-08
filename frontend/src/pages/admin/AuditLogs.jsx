@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { Shield } from 'lucide-react';
 import api from '../../api/client';
 import { PageHeader, SkeletonRow, EmptyState } from '../../components/ui';
@@ -78,7 +77,7 @@ export default function AuditLogs() {
                       <EmptyState icon={Shield} title="No audit logs" description="Actions will appear here as users interact with the system" />
                     </td></tr>
                   : logs.map((l, i) => (
-                    <motion.tr key={l.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.01 }}>
+                    <tr key={l.id}}}}>
                       <td className="font-mono text-xs text-muted whitespace-nowrap">
                         {new Date(l.created_at).toLocaleString('en-PK', { dateStyle:'short', timeStyle:'short' })}
                       </td>
@@ -108,7 +107,7 @@ export default function AuditLogs() {
                           </details>
                         )}
                       </td>
-                    </motion.tr>
+                    </tr>
                   ))
               }
             </tbody>

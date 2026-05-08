@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import {
   Milk, Sun, Moon, Calculator, CheckCircle,
@@ -114,12 +113,9 @@ export default function MilkEntry() {
       </div>
 
       {/* Last saved banner */}
-      <AnimatePresence>
+      
         {lastSaved && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
+          <div}}}
             className="flex items-start gap-3 p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20"
           >
             <CheckCircle size={18} className="text-emerald-400 flex-shrink-0 mt-0.5" />
@@ -130,9 +126,9 @@ export default function MilkEntry() {
                 <strong>{fmtPKR(lastSaved.amount)}</strong>
               </p>
             </div>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
+      
 
       {/* Shift selector — big tap targets */}
       <div>
@@ -193,15 +189,13 @@ export default function MilkEntry() {
           )}
           {/* Farmer pricing info */}
           {selectedFarmer && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
+            <div}}
               className="mt-2 px-3 py-2 rounded-xl bg-white border border-[#d1dce8] text-xs text-muted flex gap-4"
             >
               <span>Base: <strong className="text-slate-600">Rs {selectedFarmer.base_rate}/L</strong></span>
               <span>FAT ideal: <strong className="text-slate-600">{selectedFarmer.ideal_fat}%</strong></span>
               <span>SNF ideal: <strong className="text-slate-600">{selectedFarmer.ideal_snf}%</strong></span>
-            </motion.div>
+            </div>
           )}
         </div>
 
@@ -270,12 +264,9 @@ export default function MilkEntry() {
         </div>
 
         {/* Live rate preview */}
-        <AnimatePresence>
+        
           {(preview || previewing) && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.97 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.97 }}
+            <div}}}
               className="rounded-2xl border border-emerald-500/30 bg-emerald-500/8 p-4"
             >
               {previewing ? (
@@ -300,9 +291,9 @@ export default function MilkEntry() {
                   </div>
                 </div>
               )}
-            </motion.div>
+            </div>
           )}
-        </AnimatePresence>
+        
 
         {/* Submit button — full width, large */}
         <button
@@ -329,11 +320,8 @@ export default function MilkEntry() {
           <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide">Today's Entries ({todayRecords.length})</h3>
           <div className="space-y-2">
             {todayRecords.map((r, i) => (
-              <motion.div
-                key={r.id}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.04 }}
+              <div
+                key={r.id}}}}
                 className="flex items-center justify-between px-4 py-3 rounded-xl bg-white border border-[#d1dce8]"
               >
                 <div className="flex items-center gap-3">
@@ -352,7 +340,7 @@ export default function MilkEntry() {
                   <p className="text-sm font-bold font-mono text-emerald-400">{fmtPKR(r.total_amount)}</p>
                   <p className="text-xs text-muted font-mono">Rs {parseFloat(r.computed_rate).toFixed(2)}/L</p>
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
