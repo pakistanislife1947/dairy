@@ -77,7 +77,7 @@ export default function AuditLogs() {
                       <EmptyState icon={Shield} title="No audit logs" description="Actions will appear here as users interact with the system" />
                     </td></tr>
                   : logs.map((l, i) => (
-                    <tr key={l.id}}}}>
+                    <tr key={l.id}>
                       <td className="font-mono text-xs text-muted whitespace-nowrap">
                         {new Date(l.created_at).toLocaleString('en-PK', { dateStyle:'short', timeStyle:'short' })}
                       </td>
