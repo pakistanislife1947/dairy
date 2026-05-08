@@ -18,7 +18,7 @@ export default function VerifyEmailPage() {
 
   return (
     <div className="min-h-screen bg-surface flex items-center justify-center p-6">
-      <div}}
+      <div
         className="card max-w-sm w-full text-center space-y-4">
         {status === 'loading' && <Loader  size={36} className="text-brand-400 animate-spin mx-auto" />}
         {status === 'success' && <CheckCircle size={36} className="text-emerald-400 mx-auto" />}
