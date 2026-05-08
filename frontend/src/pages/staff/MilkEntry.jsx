@@ -266,7 +266,7 @@ export default function MilkEntry() {
         {/* Live rate preview */}
         
           {(preview || previewing) && (
-            <div}}}
+            <div
               className="rounded-2xl border border-emerald-500/30 bg-emerald-500/8 p-4"
             >
               {previewing ? (
