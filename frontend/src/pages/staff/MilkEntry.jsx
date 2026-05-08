@@ -321,7 +321,7 @@ export default function MilkEntry() {
           <div className="space-y-2">
             {todayRecords.map((r, i) => (
               <div
-                key={r.id}}}}
+                key={r.id}
                 className="flex items-center justify-between px-4 py-3 rounded-xl bg-white border border-[#d1dce8]"
               >
                 <div className="flex items-center gap-3">
