@@ -39,7 +39,7 @@ export default function StaffDashboard() {
           { shift: 'Evening', icon: Moon, data: evening, color: 'brand' },
         ].map(({ shift, icon: Icon, data, color }) => (
           <div
-            key={shift}}}}
+            key={shift}
             className="card"
           >
             <div className={`w-9 h-9 rounded-xl mb-3 flex items-center justify-center
