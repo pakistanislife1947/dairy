@@ -1,22 +1,88 @@
 import { useState, useEffect } from 'react';
-import { Store, Plus, Pencil, Receipt, CheckCircle, Clock } from 'lucide-react';
+import { Store, Plus, Pencil, Receipt } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../api/client';
 import { PageHeader, Modal, EmptyState } from '../../components/ui';
 
 const fmt = n => `Rs ${Number(n||0).toLocaleString('en-PK',{maximumFractionDigits:0})}`;
-
 const emptyForm = { shop_name:'', location:'', ownership_type:'owned', owner_name:'', owner_phone:'', monthly_rent:'', rent_due_day:'' };
 
+// ─── ShopForm OUTSIDE parent — fixes cursor reset on every keystroke ───
+function ShopForm({ form, setForm, onSubmit, saving, modal, onClose }) {
+  return (
+    <form onSubmit={onSubmit} className="space-y-4">
+      <div>
+        <label className="label">Shop Name *</label>
+        <input
+          value={form.shop_name}
+          onChange={e=>setForm(p=>({...p,shop_name:e.target.value}))}
+          className="input" placeholder="Main Branch, Multan"
+        />
+      </div>
+      <div>
+        <label className="label">Location / Address</label>
+        <input
+          value={form.location}
+          onChange={e=>setForm(p=>({...p,location:e.target.value}))}
+          className="input" placeholder="Street, City"
+        />
+      </div>
+      <div>
+        <label className="label">Ownership</label>
+        <div className="grid grid-cols-2 gap-2">
+          {['owned','rented'].map(t=>(
+            <button key={t} type="button" onClick={()=>setForm(p=>({...p,ownership_type:t}))}
+              className={`py-2.5 rounded-xl text-sm font-semibold border-2 capitalize transition
+                ${form.ownership_type===t?'border-[#1d6faa] bg-blue-50 text-[#1d6faa]':'border-slate-200 text-slate-500'}`}>
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
+      {form.ownership_type==='rented' && (
+        <div className="border border-slate-200 rounded-xl p-4 space-y-3">
+          <p className="text-sm font-semibold text-slate-600">Owner & Rent Details</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Owner Name</label>
+              <input value={form.owner_name} onChange={e=>setForm(p=>({...p,owner_name:e.target.value}))} className="input"/>
+            </div>
+            <div>
+              <label className="label">Owner Phone</label>
+              <input value={form.owner_phone} onChange={e=>setForm(p=>({...p,owner_phone:e.target.value}))} className="input"/>
+            </div>
+            <div>
+              <label className="label">Monthly Rent (PKR)</label>
+              <input type="number" step="100" value={form.monthly_rent}
+                onChange={e=>setForm(p=>({...p,monthly_rent:e.target.value}))} className="input font-mono"/>
+            </div>
+            <div>
+              <label className="label">Due Day (1-31)</label>
+              <input type="number" min="1" max="31" value={form.rent_due_day}
+                onChange={e=>setForm(p=>({...p,rent_due_day:e.target.value}))} className="input font-mono"/>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="flex justify-end gap-3">
+        <button type="button" onClick={onClose} className="btn-ghost">Cancel</button>
+        <button type="submit" disabled={saving} className="btn-primary">
+          {saving?'Saving…':modal==='edit'?'Save':'Add Shop'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export default function Shops() {
-  const [shops, setShops]       = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [modal, setModal]       = useState(null);
-  const [selS, setSel]          = useState(null);
+  const [shops, setShops]             = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [modal, setModal]             = useState(null);
+  const [selS, setSel]                = useState(null);
   const [rentHistory, setRentHistory] = useState([]);
-  const [saving, setSaving]     = useState(false);
-  const [form, setForm]         = useState(emptyForm);
-  const [rentForm, setRentForm] = useState({ paid_for:'', paid_date: new Date().toISOString().slice(0,10), amount:'' });
+  const [saving, setSaving]           = useState(false);
+  const [form, setForm]               = useState(emptyForm);
+  const [rentForm, setRentForm]       = useState({ paid_for:'', paid_date: new Date().toISOString().slice(0,10), amount:'' });
 
   const load = () => {
     setLoading(true);
@@ -26,16 +92,18 @@ export default function Shops() {
 
   const openRent = (s) => {
     setSel(s); setModal('rent');
-    setRentForm(p=>({ ...p, amount: s.monthly_rent||'' }));
+    setRentForm(p=>({...p, amount: s.monthly_rent||''}));
     api.get(`/shops/${s.id}/rent-history`).then(r=>setRentHistory(r.data.data||[]));
   };
 
   const openEdit = (s) => {
     setSel(s);
-    setForm({ shop_name:s.shop_name||s.name||'', location:s.location||'',
-      ownership_type:s.ownership_type||'owned', owner_name:s.owner_name||'',
-      owner_phone:s.owner_phone||'', monthly_rent:s.monthly_rent||'',
-      rent_due_day:s.rent_due_day||'' });
+    setForm({
+      shop_name: s.shop_name||s.name||'', location: s.location||'',
+      ownership_type: s.ownership_type||'owned', owner_name: s.owner_name||'',
+      owner_phone: s.owner_phone||'', monthly_rent: s.monthly_rent||'',
+      rent_due_day: s.rent_due_day||''
+    });
     setModal('edit');
   };
 
@@ -58,55 +126,12 @@ export default function Shops() {
     try {
       await api.patch(`/shops/${selS.id}/rent`, rentForm);
       toast.success('Rent payment recorded & added to expenses');
-      setRentForm(p=>({...p,paid_for:'',amount:selS.monthly_rent||''}));
+      setRentForm(p=>({...p, paid_for:'', amount: selS.monthly_rent||''}));
       api.get(`/shops/${selS.id}/rent-history`).then(r=>setRentHistory(r.data.data||[]));
       load();
     } catch(err){ toast.error(err.response?.data?.message||'Failed'); }
     finally{ setSaving(false); }
   };
-
-  const ShopForm = () => (
-    <form onSubmit={onShop} className="space-y-4">
-      <div><label className="label">Shop Name *</label>
-        <input value={form.shop_name} onChange={e=>setForm(p=>({...p,shop_name:e.target.value}))}
-          className="input" placeholder="Main Branch, Multan"/></div>
-      <div><label className="label">Location / Address</label>
-        <input value={form.location} onChange={e=>setForm(p=>({...p,location:e.target.value}))}
-          className="input" placeholder="Street, City"/></div>
-      <div><label className="label">Ownership</label>
-        <div className="grid grid-cols-2 gap-2">
-          {['owned','rented'].map(t=>(
-            <button key={t} type="button" onClick={()=>setForm(p=>({...p,ownership_type:t}))}
-              className={`py-2.5 rounded-xl text-sm font-semibold border-2 capitalize transition
-                ${form.ownership_type===t?'border-[#1d6faa] bg-blue-50 text-[#1d6faa]':'border-slate-200 text-slate-500'}`}>
-              {t}
-            </button>
-          ))}
-        </div>
-      </div>
-      {form.ownership_type==='rented' && (
-        <div className="border border-slate-200 rounded-xl p-4 space-y-3">
-          <p className="text-sm font-semibold text-slate-600">Owner & Rent Details</p>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="label">Owner Name</label>
-              <input value={form.owner_name} onChange={e=>setForm(p=>({...p,owner_name:e.target.value}))} className="input"/></div>
-            <div><label className="label">Owner Phone</label>
-              <input value={form.owner_phone} onChange={e=>setForm(p=>({...p,owner_phone:e.target.value}))} className="input"/></div>
-            <div><label className="label">Monthly Rent (PKR)</label>
-              <input type="number" step="100" value={form.monthly_rent}
-                onChange={e=>setForm(p=>({...p,monthly_rent:e.target.value}))} className="input font-mono"/></div>
-            <div><label className="label">Due Day (1-31)</label>
-              <input type="number" min="1" max="31" value={form.rent_due_day}
-                onChange={e=>setForm(p=>({...p,rent_due_day:e.target.value}))} className="input font-mono"/></div>
-          </div>
-        </div>
-      )}
-      <div className="flex justify-end gap-3">
-        <button type="button" onClick={()=>setModal(null)} className="btn-ghost">Cancel</button>
-        <button type="submit" disabled={saving} className="btn-primary">{saving?'Saving…':modal==='edit'?'Save':'Add Shop'}</button>
-      </div>
-    </form>
-  );
 
   return (
     <div className="space-y-5">
@@ -146,10 +171,13 @@ export default function Shops() {
         ))}
       </div>
 
-      <Modal isOpen={modal==='add'} onClose={()=>setModal(null)} title="Add Shop" size="sm"><ShopForm/></Modal>
-      <Modal isOpen={modal==='edit'} onClose={()=>setModal(null)} title={`Edit: ${selS?.shop_name||selS?.name}`} size="sm"><ShopForm/></Modal>
+      <Modal isOpen={modal==='add'} onClose={()=>setModal(null)} title="Add Shop" size="sm">
+        <ShopForm form={form} setForm={setForm} onSubmit={onShop} saving={saving} modal={modal} onClose={()=>setModal(null)}/>
+      </Modal>
+      <Modal isOpen={modal==='edit'} onClose={()=>setModal(null)} title={`Edit: ${selS?.shop_name||selS?.name}`} size="sm">
+        <ShopForm form={form} setForm={setForm} onSubmit={onShop} saving={saving} modal={modal} onClose={()=>setModal(null)}/>
+      </Modal>
 
-      {/* Rent Payment Modal */}
       <Modal isOpen={modal==='rent'} onClose={()=>setModal(null)} title={`Rent — ${selS?.shop_name||selS?.name}`} size="sm">
         <div className="space-y-5">
           <form onSubmit={onRent} className="border border-slate-200 rounded-xl p-4 space-y-3">
@@ -160,16 +188,22 @@ export default function Shops() {
                 {selS.rent_due_day && ` · Due on ${selS.rent_due_day}th`}
               </div>
             )}
-            <div><label className="label">For Month (YYYY-MM)</label>
+            <div>
+              <label className="label">For Month (YYYY-MM)</label>
               <input type="month" value={rentForm.paid_for}
-                onChange={e=>setRentForm(p=>({...p,paid_for:e.target.value}))} className="input"/></div>
+                onChange={e=>setRentForm(p=>({...p,paid_for:e.target.value}))} className="input"/>
+            </div>
             <div className="grid grid-cols-2 gap-2">
-              <div><label className="label">Payment Date</label>
+              <div>
+                <label className="label">Payment Date</label>
                 <input type="date" value={rentForm.paid_date}
-                  onChange={e=>setRentForm(p=>({...p,paid_date:e.target.value}))} className="input"/></div>
-              <div><label className="label">Amount (PKR)</label>
+                  onChange={e=>setRentForm(p=>({...p,paid_date:e.target.value}))} className="input"/>
+              </div>
+              <div>
+                <label className="label">Amount (PKR)</label>
                 <input type="number" step="100" value={rentForm.amount}
-                  onChange={e=>setRentForm(p=>({...p,amount:e.target.value}))} className="input font-mono"/></div>
+                  onChange={e=>setRentForm(p=>({...p,amount:e.target.value}))} className="input font-mono"/>
+              </div>
             </div>
             <button type="submit" disabled={saving} className="btn-primary w-full">{saving?'…':'Record Payment'}</button>
           </form>
