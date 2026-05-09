@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Truck, Plus, Fuel, Wrench, X, Pencil, AlertTriangle } from 'lucide-react';
+import { Truck, Plus, Fuel, Pencil } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../api/client';
 import { PageHeader, Modal, EmptyState, ConfirmDialog } from '../../components/ui';
@@ -21,10 +21,157 @@ const emptyForm = {
   installment_months:'', installment_paid:'0', notes:''
 };
 
+// ─── VehicleForm extracted OUTSIDE so it never remounts on parent re-render ───
+function VehicleForm({ form, setForm, onSubmit, saving, modal, onClose }) {
+  const monthlyInstallment = form.payment_type==='installment' && form.purchase_price && form.installment_months
+    ? parseFloat(form.purchase_price)/parseInt(form.installment_months) : null;
+  const remaining = monthlyInstallment
+    ? (parseInt(form.installment_months)-parseInt(form.installment_paid||0))*monthlyInstallment : null;
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Reg Number *</label>
+          <input
+            value={form.reg_number}
+            onChange={e=>setForm(p=>({...p,reg_number:e.target.value}))}
+            className="input" placeholder="LEA-1234"
+          />
+        </div>
+        <div>
+          <label className="label">Make / Model</label>
+          <input
+            value={form.make_model}
+            onChange={e=>setForm(p=>({...p,make_model:e.target.value}))}
+            className="input" placeholder="Shehzore 2022"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="label">Use Type</label>
+        <div className="grid grid-cols-2 gap-2">
+          {['commercial','residential'].map(t=>(
+            <button key={t} type="button"
+              onClick={()=>setForm(p=>({...p,use_type:t,capacity_liters:t==='residential'?'':p.capacity_liters}))}
+              className={`py-2.5 rounded-xl text-sm font-semibold border-2 capitalize transition
+                ${form.use_type===t?'border-[#1d6faa] bg-blue-50 text-[#1d6faa]':'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {form.use_type==='commercial' && (
+        <div>
+          <label className="label">Milk Capacity (Liters)</label>
+          <input type="number" step="0.1" value={form.capacity_liters}
+            onChange={e=>setForm(p=>({...p,capacity_liters:e.target.value}))}
+            className="input font-mono" placeholder="e.g. 500"
+          />
+        </div>
+      )}
+
+      <div>
+        <label className="label">Ownership</label>
+        <div className="grid grid-cols-2 gap-2">
+          {['owned','rented'].map(t=>(
+            <button key={t} type="button" onClick={()=>setForm(p=>({...p,ownership_type:t}))}
+              className={`py-2.5 rounded-xl text-sm font-semibold border-2 capitalize transition
+                ${form.ownership_type===t?'border-[#1d6faa] bg-blue-50 text-[#1d6faa]':'border-slate-200 text-slate-500'}`}>
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {form.ownership_type==='owned' && (
+        <div className="border border-slate-200 rounded-xl p-4 space-y-3">
+          <p className="text-sm font-semibold text-slate-600">Purchase Details</p>
+          <div>
+            <label className="label">Invoice Amount (PKR)</label>
+            <input type="number" step="1000" value={form.purchase_price}
+              onChange={e=>setForm(p=>({...p,purchase_price:e.target.value}))}
+              className="input font-mono" placeholder="1,500,000"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {[['full','Full Payment'],['installment','Installments']].map(([t,l])=>(
+              <button key={t} type="button" onClick={()=>setForm(p=>({...p,payment_type:t}))}
+                className={`py-2 rounded-xl text-sm font-medium border-2 transition
+                  ${form.payment_type===t?'border-[#1d6faa] bg-blue-50 text-[#1d6faa]':'border-slate-200 text-slate-500'}`}>
+                {l}
+              </button>
+            ))}
+          </div>
+          {form.payment_type==='installment' && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="label">Total Months</label>
+                  <input type="number" min="1" value={form.installment_months}
+                    onChange={e=>setForm(p=>({...p,installment_months:e.target.value}))} className="input font-mono"/>
+                </div>
+                <div>
+                  <label className="label">Months Paid</label>
+                  <input type="number" min="0" value={form.installment_paid}
+                    onChange={e=>setForm(p=>({...p,installment_paid:e.target.value}))} className="input font-mono"/>
+                </div>
+              </div>
+              {monthlyInstallment && (
+                <div className="bg-blue-50 rounded-lg p-3 space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Monthly</span>
+                    <span className="font-bold text-[#1d6faa] font-mono">{fmt(monthlyInstallment)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Remaining ({parseInt(form.installment_months)-parseInt(form.installment_paid||0)} months)</span>
+                    <span className="font-bold text-red-500 font-mono">{fmt(remaining)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {form.ownership_type==='rented' && (
+        <div className="border border-slate-200 rounded-xl p-4 space-y-3">
+          <p className="text-sm font-semibold text-slate-600">Owner Details</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Owner Name</label>
+              <input value={form.owner_name} onChange={e=>setForm(p=>({...p,owner_name:e.target.value}))} className="input"/>
+            </div>
+            <div>
+              <label className="label">Owner Phone</label>
+              <input value={form.owner_phone} onChange={e=>setForm(p=>({...p,owner_phone:e.target.value}))} className="input"/>
+            </div>
+          </div>
+          <div>
+            <label className="label">Monthly Rent (PKR)</label>
+            <input type="number" step="100" value={form.monthly_rent}
+              onChange={e=>setForm(p=>({...p,monthly_rent:e.target.value}))}
+              className="input font-mono"/>
+          </div>
+        </div>
+      )}
+
+      <div className="flex justify-end gap-3">
+        <button type="button" onClick={onClose} className="btn-ghost">Cancel</button>
+        <button type="submit" disabled={saving} className="btn-primary">
+          {saving?'Saving…':modal==='edit'?'Save Changes':'Add Vehicle'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export default function Vehicles() {
   const [vehicles, setVehicles]   = useState([]);
   const [loading, setLoading]     = useState(true);
-  const [modal, setModal]         = useState(null); // 'add'|'edit'|'expenses'
+  const [modal, setModal]         = useState(null);
   const [selV, setSel]            = useState(null);
   const [expenses, setExpenses]   = useState([]);
   const [saving, setSaving]       = useState(false);
@@ -45,12 +192,14 @@ export default function Vehicles() {
 
   const openEdit = (v) => {
     setSel(v);
-    setForm({ reg_number:v.reg_number, make_model:v.make_model||'', use_type:v.use_type||'commercial',
+    setForm({
+      reg_number:v.reg_number, make_model:v.make_model||'', use_type:v.use_type||'commercial',
       ownership_type:v.ownership_type||'owned', owner_name:v.owner_name||'',
       owner_phone:v.owner_phone||'', monthly_rent:v.monthly_rent||'',
       capacity_liters:v.capacity_liters||'', purchase_price:v.purchase_price||'',
       payment_type:v.payment_type||'full', installment_months:v.installment_months||'',
-      installment_paid:v.installment_paid||'0', notes:v.notes||'' });
+      installment_paid:v.installment_paid||'0', notes:v.notes||''
+    });
     setModal('edit');
   };
 
@@ -85,129 +234,17 @@ export default function Vehicles() {
     catch{ toast.error('Failed'); } finally{ setDeact(null); }
   };
 
-  const monthlyInstallment = form.payment_type==='installment' && form.purchase_price && form.installment_months
-    ? parseFloat(form.purchase_price)/parseInt(form.installment_months) : null;
-  const remaining = monthlyInstallment
-    ? (parseInt(form.installment_months)-parseInt(form.installment_paid||0))*monthlyInstallment : null;
-
-  const VehicleForm = () => (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <div><label className="label">Reg Number *</label>
-          <input value={form.reg_number} onChange={e=>setForm(p=>({...p,reg_number:e.target.value}))}
-            className="input" placeholder="LEA-1234"/></div>
-        <div><label className="label">Make / Model</label>
-          <input value={form.make_model} onChange={e=>setForm(p=>({...p,make_model:e.target.value}))}
-            className="input" placeholder="Shehzore 2022"/></div>
-      </div>
-
-      {/* Use Type */}
-      <div><label className="label">Use Type</label>
-        <div className="grid grid-cols-2 gap-2">
-          {['commercial','residential'].map(t=>(
-            <button key={t} type="button" onClick={()=>setForm(p=>({...p,use_type:t,capacity_liters:t==='residential'?'':p.capacity_liters}))}
-              className={`py-2.5 rounded-xl text-sm font-semibold border-2 capitalize transition
-                ${form.use_type===t?'border-[#1d6faa] bg-blue-50 text-[#1d6faa]':'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
-              {t}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Capacity - only for commercial */}
-      {form.use_type==='commercial' && (
-        <div><label className="label">Milk Capacity (Liters)</label>
-          <input type="number" step="0.1" value={form.capacity_liters}
-            onChange={e=>setForm(p=>({...p,capacity_liters:e.target.value}))}
-            className="input font-mono" placeholder="e.g. 500"/></div>
-      )}
-
-      {/* Ownership */}
-      <div><label className="label">Ownership</label>
-        <div className="grid grid-cols-2 gap-2">
-          {['owned','rented'].map(t=>(
-            <button key={t} type="button" onClick={()=>setForm(p=>({...p,ownership_type:t}))}
-              className={`py-2.5 rounded-xl text-sm font-semibold border-2 capitalize transition
-                ${form.ownership_type===t?'border-[#1d6faa] bg-blue-50 text-[#1d6faa]':'border-slate-200 text-slate-500'}`}>
-              {t}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Owned → purchase */}
-      {form.ownership_type==='owned' && (
-        <div className="border border-slate-200 rounded-xl p-4 space-y-3">
-          <p className="text-sm font-semibold text-slate-600">Purchase Details</p>
-          <div><label className="label">Invoice Amount (PKR)</label>
-            <input type="number" step="1000" value={form.purchase_price}
-              onChange={e=>setForm(p=>({...p,purchase_price:e.target.value}))}
-              className="input font-mono" placeholder="1,500,000"/></div>
-          <div className="grid grid-cols-2 gap-2">
-            {[['full','Full Payment'],['installment','Installments']].map(([t,l])=>(
-              <button key={t} type="button" onClick={()=>setForm(p=>({...p,payment_type:t}))}
-                className={`py-2 rounded-xl text-sm font-medium border-2 transition
-                  ${form.payment_type===t?'border-[#1d6faa] bg-blue-50 text-[#1d6faa]':'border-slate-200 text-slate-500'}`}>
-                {l}
-              </button>
-            ))}
-          </div>
-          {form.payment_type==='installment' && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <div><label className="label">Total Months</label>
-                  <input type="number" min="1" value={form.installment_months}
-                    onChange={e=>setForm(p=>({...p,installment_months:e.target.value}))} className="input font-mono"/></div>
-                <div><label className="label">Months Paid</label>
-                  <input type="number" min="0" value={form.installment_paid}
-                    onChange={e=>setForm(p=>({...p,installment_paid:e.target.value}))} className="input font-mono"/></div>
-              </div>
-              {monthlyInstallment && (
-                <div className="bg-blue-50 rounded-lg p-3 space-y-1 text-sm">
-                  <div className="flex justify-between"><span className="text-slate-600">Monthly</span><span className="font-bold text-[#1d6faa] font-mono">{fmt(monthlyInstallment)}</span></div>
-                  <div className="flex justify-between"><span className="text-slate-600">Remaining ({parseInt(form.installment_months)-parseInt(form.installment_paid||0)} months)</span><span className="font-bold text-red-500 font-mono">{fmt(remaining)}</span></div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Rented */}
-      {form.ownership_type==='rented' && (
-        <div className="border border-slate-200 rounded-xl p-4 space-y-3">
-          <p className="text-sm font-semibold text-slate-600">Owner Details</p>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="label">Owner Name</label>
-              <input value={form.owner_name} onChange={e=>setForm(p=>({...p,owner_name:e.target.value}))} className="input"/></div>
-            <div><label className="label">Owner Phone</label>
-              <input value={form.owner_phone} onChange={e=>setForm(p=>({...p,owner_phone:e.target.value}))} className="input"/></div>
-          </div>
-          <div><label className="label">Monthly Rent (PKR)</label>
-            <input type="number" step="100" value={form.monthly_rent}
-              onChange={e=>setForm(p=>({...p,monthly_rent:e.target.value}))} className="input font-mono"/></div>
-        </div>
-      )}
-
-      <div className="flex justify-end gap-3">
-        <button type="button" onClick={()=>setModal(null)} className="btn-ghost">Cancel</button>
-        <button type="submit" disabled={saving} className="btn-primary">{saving?'Saving…':modal==='edit'?'Save Changes':'Add Vehicle'}</button>
-      </div>
-    </form>
-  );
-
   return (
     <div className="space-y-5">
       <PageHeader title="Vehicles" subtitle="Fleet management & expense tracking"
         action={<button onClick={()=>{ setForm(emptyForm); setModal('add'); }} className="btn-primary"><Plus size={16}/>Add Vehicle</button>}/>
 
-      {/* Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label:'Total', value: vehicles.length, sub: 'vehicles' },
-          { label:'Commercial', value: vehicles.filter(v=>v.use_type==='commercial').length, sub: 'milk delivery' },
-          { label:'Rented', value: vehicles.filter(v=>v.ownership_type==='rented').length, sub: 'rental fleet' },
-          { label:'Total Expenses', value: fmt(vehicles.reduce((s,v)=>s+parseFloat(v.total_expenses||0),0)), sub: 'all time' },
+          { label:'Total',        value: vehicles.length,                                          sub:'vehicles' },
+          { label:'Commercial',   value: vehicles.filter(v=>v.use_type==='commercial').length,     sub:'milk delivery' },
+          { label:'Rented',       value: vehicles.filter(v=>v.ownership_type==='rented').length,   sub:'rental fleet' },
+          { label:'Total Expenses', value: fmt(vehicles.reduce((s,v)=>s+parseFloat(v.total_expenses||0),0)), sub:'all time' },
         ].map(({label,value,sub})=>(
           <div key={label} className="card">
             <p className="text-xs text-slate-500 mb-1">{label}</p>
@@ -217,7 +254,6 @@ export default function Vehicles() {
         ))}
       </div>
 
-      {/* Vehicle grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {loading ? [...Array(3)].map((_,i)=>(
           <div key={i} className="card animate-pulse"><div className="h-4 bg-slate-200 rounded w-3/4 mb-2"/><div className="h-3 bg-slate-100 rounded w-1/2"/></div>
@@ -253,16 +289,19 @@ export default function Vehicles() {
         ))}
       </div>
 
-      <Modal isOpen={modal==='add'} onClose={()=>setModal(null)} title="Add Vehicle" size="md"><VehicleForm/></Modal>
-      <Modal isOpen={modal==='edit'} onClose={()=>setModal(null)} title={`Edit: ${selV?.reg_number}`} size="md"><VehicleForm/></Modal>
+      <Modal isOpen={modal==='add'} onClose={()=>setModal(null)} title="Add Vehicle" size="md">
+        <VehicleForm form={form} setForm={setForm} onSubmit={onSubmit} saving={saving} modal={modal} onClose={()=>setModal(null)}/>
+      </Modal>
+      <Modal isOpen={modal==='edit'} onClose={()=>setModal(null)} title={`Edit: ${selV?.reg_number}`} size="md">
+        <VehicleForm form={form} setForm={setForm} onSubmit={onSubmit} saving={saving} modal={modal} onClose={()=>setModal(null)}/>
+      </Modal>
 
-      {/* Expenses Modal */}
       <Modal isOpen={modal==='expenses'} onClose={()=>setModal(null)} title={`${selV?.reg_number} — Expenses`} size="md">
         <div className="space-y-5">
           <form onSubmit={onExpense} className="border border-slate-200 rounded-xl p-4 space-y-3">
             <p className="text-sm font-semibold text-slate-600">Add Expense</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {EXP_TYPES.map(({value,label,color})=>(
+              {EXP_TYPES.map(({value,label})=>(
                 <button key={value} type="button" onClick={()=>setExpForm(p=>({...p,expense_type:value}))}
                   className={`py-2 rounded-xl text-xs font-semibold border-2 transition
                     ${expForm.expense_type===value?'border-[#1d6faa] bg-blue-50 text-[#1d6faa]':'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
@@ -271,15 +310,21 @@ export default function Vehicles() {
               ))}
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <div><label className="label">Date</label>
+              <div>
+                <label className="label">Date</label>
                 <input type="date" value={expForm.expense_date}
-                  onChange={e=>setExpForm(p=>({...p,expense_date:e.target.value}))} className="input"/></div>
-              <div><label className="label">Amount (PKR)</label>
+                  onChange={e=>setExpForm(p=>({...p,expense_date:e.target.value}))} className="input"/>
+              </div>
+              <div>
+                <label className="label">Amount (PKR)</label>
                 <input type="number" step="0.01" value={expForm.amount}
-                  onChange={e=>setExpForm(p=>({...p,amount:e.target.value}))} className="input font-mono"/></div>
+                  onChange={e=>setExpForm(p=>({...p,amount:e.target.value}))} className="input font-mono"/>
+              </div>
             </div>
-            <div><label className="label">Notes</label>
-              <input value={expForm.notes} onChange={e=>setExpForm(p=>({...p,notes:e.target.value}))} className="input" placeholder="Optional"/></div>
+            <div>
+              <label className="label">Notes</label>
+              <input value={expForm.notes} onChange={e=>setExpForm(p=>({...p,notes:e.target.value}))} className="input" placeholder="Optional"/>
+            </div>
             <button type="submit" disabled={saving} className="btn-primary w-full">{saving?'Saving…':'Add Expense'}</button>
           </form>
 
