@@ -15,7 +15,7 @@ require('./src/config/passport');
 
 const app = express();
 
-// ── Trust proxy (Railway sits behind a load balancer) ──────────────────
+// ── Trust proxy (Render sits behind a load balancer) ───────────────────
 app.set('trust proxy', 1);
 
 // ── Security headers ───────────────────────────────────────────────────
@@ -146,7 +146,7 @@ app.use(notFound);
 app.use(errorHandler);
 
 // ── Start server ───────────────────────────────────────────────────────
-const PORT = parseInt(process.env.PORT || '5000');
+const PORT = parseInt(process.env.PORT || '3000');
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🥛 Dairy ERP API  →  http://localhost:${PORT}`);
   console.log(`🌍 Env: ${process.env.NODE_ENV || 'development'}\n`);
