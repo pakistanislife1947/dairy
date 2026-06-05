@@ -22,15 +22,10 @@ app.set('trust proxy', 1);
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
 // ── CORS ───────────────────────────────────────────────────────────────
-// Reads from ALLOWED_ORIGINS first, falls back to CLIENT_URL, then localhost.
-// Set in Railway Variables as a comma-separated list:
-//   ALLOWED_ORIGINS=https://dairy-sand.vercel.app,https://your-other-domain.com
-//
-// If you only have one domain you can also just set CLIENT_URL — both work.
-
+// Reads from ALLOWED_ORIGINS first, falls back to CLIENT_URL, then vercel/localhost.
 const rawOrigins = process.env.ALLOWED_ORIGINS
   || process.env.CLIENT_URL
-  || 'http://localhost:5173';
+  || 'https://brimi.vercel.app,http://localhost:5173'; // <-- Yahan Vercel ka URL add kar diya hai
 
 const allowedOrigins = rawOrigins
   .split(',')
@@ -52,10 +47,10 @@ const corsOptions = {
 
     // Log the blocked origin so you can add it quickly
     console.warn(`⛔ CORS blocked: ${origin}`);
-    console.warn(`   To allow it, add it to the ALLOWED_ORIGINS Railway variable.`);
+    console.warn(`   To allow it, add it to the ALLOWED_ORIGINS environment variable.`);
 
-    // Return 403 with JSON — NOT a thrown Error (thrown Error becomes 500 with no CORS headers)
-    return callback(null, false);
+    // Return Error to explicitly block it via CORS policy
+    return callback(new Error(`CORS policy blocked this origin: ${origin}`), false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -67,8 +62,6 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // Explicitly handle OPTIONS preflight for every route.
-// Without this, preflight requests to /api/auth/login never reach the route
-// and return 404 with no CORS headers — browser shows "CORS error".
 app.options('*', cors(corsOptions));
 
 // ── Rate limiting ──────────────────────────────────────────────────────
@@ -117,7 +110,6 @@ app.use('/api/audit',     require('./src/routes/audit'));
 app.use('/api/dashboard', require('./src/routes/dashboard'));
 
 const settingsRoutes = require('./src/routes/settings');
-// ... your existing routes ...
 app.use('/api/settings', settingsRoutes);
 app.use('/api/customers', require('./src/routes/customers'));
 app.use('/api/products',  require('./src/routes/products'));
