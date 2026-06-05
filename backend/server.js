@@ -22,46 +22,42 @@ app.set('trust proxy', 1);
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
 // ── CORS ───────────────────────────────────────────────────────────────
-// Reads from ALLOWED_ORIGINS first, falls back to CLIENT_URL, then vercel/localhost.
 const rawOrigins = process.env.ALLOWED_ORIGINS
   || process.env.CLIENT_URL
-  || 'https://brimi.vercel.app,http://localhost:5173'; // <-- Yahan Vercel ka URL add kar diya hai
+  || 'http://localhost:5173';
 
 const allowedOrigins = rawOrigins
   .split(',')
   .map(o => o.trim())
   .filter(Boolean);
 
+// 🔥 BULLETPROOF FIX: Agar environment variables mein vercel link missing ho, toh yeh line khud add kar degi
+if (!allowedOrigins.includes('https://brimi.vercel.app')) {
+  allowedOrigins.push('https://brimi.vercel.app');
+}
+
 console.log('✅ CORS allowed origins:');
 allowedOrigins.forEach(o => console.log(`   • ${o}`));
 
-// Build the CORS options object once — reused for both middleware and preflight
 const corsOptions = {
   origin(origin, callback) {
-    // Allow requests with no Origin header (server-to-server, curl, mobile apps)
     if (!origin) return callback(null, true);
 
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
 
-    // Log the blocked origin so you can add it quickly
     console.warn(`⛔ CORS blocked: ${origin}`);
-    console.warn(`   To allow it, add it to the ALLOWED_ORIGINS environment variable.`);
-
-    // Return Error to explicitly block it via CORS policy
-    return callback(new Error(`CORS policy blocked this origin: ${origin}`), false);
+    // callback(null, false) rakhein taake 500 error crash na ho
+    return callback(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  optionsSuccessStatus: 200, // Some browsers (IE11) choke on 204
+  optionsSuccessStatus: 200,
 };
 
-// Apply CORS to all routes
 app.use(cors(corsOptions));
-
-// Explicitly handle OPTIONS preflight for every route.
 app.options('*', cors(corsOptions));
 
 // ── Rate limiting ──────────────────────────────────────────────────────
