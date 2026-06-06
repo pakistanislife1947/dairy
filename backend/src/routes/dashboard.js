@@ -7,13 +7,32 @@ dashRouter.use(authenticate, adminOnly);
 
 dashRouter.get('/', async (req, res, next) => {
   try {
-    const { month } = req.query;
-    const m  = month || new Date().toISOString().slice(0, 7);
-    const [yr, mn] = m.split('-');
-    // month start/end for range queries — avoids MySQL MONTH()/YEAR()
-    const periodStart = `${yr}-${mn}-01`;
-    const periodEnd   = new Date(parseInt(yr), parseInt(mn), 0).toISOString().slice(0,10); // last day
+    // ── Tenure / date range ──────────────────────────────────────────
+    // tenure: '1d' | '7d' | '30d' | 'custom'
+    const { tenure = '1d', date_from, date_to } = req.query;
 
+    let periodStart, periodEnd;
+    const today = new Date();
+    const pad   = n => String(n).padStart(2, '0');
+    const fmt   = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+
+    if (tenure === 'custom' && date_from && date_to) {
+      periodStart = date_from;
+      periodEnd   = date_to;
+    } else {
+      periodEnd = fmt(today);
+      if (tenure === '7d') {
+        const s = new Date(today); s.setDate(s.getDate() - 6);
+        periodStart = fmt(s);
+      } else if (tenure === '30d') {
+        const s = new Date(today); s.setDate(s.getDate() - 29);
+        periodStart = fmt(s);
+      } else {
+        periodStart = fmt(today); // 1d default
+      }
+    }
+
+    // ── Core KPIs ────────────────────────────────────────────────────
     const milkStats = await db.queryOne(
       `SELECT
          COALESCE(SUM(quantity_liters),0)  AS total_liters,
@@ -44,16 +63,50 @@ dashRouter.get('/', async (req, res, next) => {
       [periodStart, periodEnd]
     );
 
-    const [billStatus] = await db.query(
-      `SELECT b.status, COUNT(*) AS count, COALESCE(SUM(b.net_payable),0) AS amount
-       FROM bills b
-       JOIN billing_periods bp ON bp.id = b.billing_period_id
-       WHERE bp.period_month = $1 AND bp.period_year = $2
-       GROUP BY b.status`,
-      [parseInt(mn), parseInt(yr)]
+    // ── Stock Left (overall) ─────────────────────────────────────────
+    // All milk ever collected up to periodEnd minus all milk ever sold up to periodEnd
+    const stockOverall = await db.queryOne(
+      `SELECT
+         COALESCE((SELECT SUM(quantity_liters) FROM milk_records WHERE collection_date <= $1),0)
+         - COALESCE((SELECT SUM(quantity_liters) FROM milk_sales WHERE sale_date <= $1),0)
+         AS stock_liters`,
+      [periodEnd]
     );
 
-    // 6-month milk trend — TO_CHAR is PostgreSQL
+    // ── Stock Per Shop ───────────────────────────────────────────────
+    // Walk-in sales go through shops (walkin_sales table)
+    const [shopStock] = await db.query(
+      `SELECT s.id, s.shop_name,
+         COALESCE(ws.sold, 0) AS sold_liters
+       FROM shops s
+       LEFT JOIN (
+         SELECT shop_id, SUM(quantity_liters) AS sold
+         FROM walkin_sales
+         WHERE sale_date <= $1
+         GROUP BY shop_id
+       ) ws ON ws.shop_id = s.id
+       WHERE s.is_active = TRUE
+       ORDER BY s.shop_name`,
+      [periodEnd]
+    );
+
+    // ── Purchase Breakdown (per farmer/collection centre) ────────────
+    const [purchaseBreakdown] = await db.query(
+      `SELECT f.name AS farmer_name, f.farmer_code,
+              COALESCE(f.village, f.address, '—') AS location,
+              SUM(mr.quantity_liters) AS liters,
+              SUM(mr.total_amount)    AS amount,
+              AVG(mr.fat_percentage)  AS avg_fat,
+              COUNT(*)                AS records
+       FROM milk_records mr
+       JOIN farmers f ON f.id = mr.farmer_id
+       WHERE mr.collection_date BETWEEN $1 AND $2
+       GROUP BY mr.farmer_id, f.name, f.farmer_code, f.village, f.address
+       ORDER BY liters DESC`,
+      [periodStart, periodEnd]
+    );
+
+    // ── 6-month Trends ───────────────────────────────────────────────
     const [milkTrend] = await db.query(
       `SELECT TO_CHAR(collection_date,'YYYY-MM') AS month,
               SUM(quantity_liters) AS liters,
@@ -87,18 +140,30 @@ dashRouter.get('/', async (req, res, next) => {
       [periodStart, periodEnd]
     );
 
-    const profit = parseFloat(salesStats.total_revenue) - parseFloat(milkStats.purchase_cost) - parseFloat(expenseStats.total_expenses);
+    const profit = parseFloat(salesStats.total_revenue)
+                 - parseFloat(milkStats.purchase_cost)
+                 - parseFloat(expenseStats.total_expenses);
 
     res.json({
       success: true,
       data: {
-        period: m,
-        kpi: { ...milkStats, ...salesStats, ...expenseStats, profit: profit.toFixed(2),
-          margin: salesStats.total_revenue > 0 ? ((profit / salesStats.total_revenue) * 100).toFixed(1) : '0.0' },
-        bill_status:  billStatus,
-        milk_trend:   milkTrend,
-        sales_trend:  salesTrend,
-        top_farmers:  topFarmers,
+        tenure,
+        period: { from: periodStart, to: periodEnd },
+        kpi: {
+          ...milkStats,
+          ...salesStats,
+          ...expenseStats,
+          stock_liters: parseFloat(stockOverall.stock_liters || 0).toFixed(1),
+          profit:  profit.toFixed(2),
+          margin:  salesStats.total_revenue > 0
+                     ? ((profit / salesStats.total_revenue) * 100).toFixed(1)
+                     : '0.0',
+        },
+        shop_stock:         shopStock,
+        purchase_breakdown: purchaseBreakdown,
+        milk_trend:         milkTrend,
+        sales_trend:        salesTrend,
+        top_farmers:        topFarmers,
       },
     });
   } catch (err) { next(err); }
