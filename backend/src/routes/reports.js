@@ -1,15 +1,17 @@
+// backend/src/routes/reports.js
 const router = require('express').Router();
 const db     = require('../config/db');
 const { authenticate, adminOnly } = require('../middleware/auth');
 
 router.use(authenticate, adminOnly);
 
+// ── P&L Report (month) ────────────────────────────────────────────────────────
 router.get('/pl', async (req, res, next) => {
   try {
     const { month } = req.query;
-    if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+    if (!month || !/^\d{4}-\d{2}$/.test(month))
       return res.status(400).json({ success: false, message: 'month param required (YYYY-MM).' });
-    }
+
     const [yr, mn] = month.split('-');
     const periodStart = `${yr}-${mn}-01`;
     const periodEnd   = new Date(parseInt(yr), parseInt(mn), 0).toISOString().slice(0,10);
@@ -58,23 +60,39 @@ router.get('/pl', async (req, res, next) => {
       [periodStart, periodEnd]
     );
 
+    // Shop-wise sales (walk-in)
+    const [shopBreakdown] = await db.query(
+      `SELECT s.shop_name, SUM(ws.quantity_liters) AS liters, SUM(ws.total_amount) AS revenue,
+              COUNT(ws.id) AS transactions
+       FROM walkin_sales ws
+       JOIN shops s ON s.id = ws.shop_id
+       WHERE ws.sale_date BETWEEN $1 AND $2
+       GROUP BY s.id, s.shop_name ORDER BY revenue DESC`,
+      [periodStart, periodEnd]
+    ).catch(() => [[]]);
+
     res.json({
       success: true,
       data: {
         month,
+        period: { from: periodStart, to: periodEnd },
         summary: {
           milk_purchase:  parseFloat(milk.cost).toFixed(2),
           milk_liters:    parseFloat(milk.liters).toFixed(2),
           sales_revenue:  parseFloat(sales.revenue).toFixed(2),
           sales_received: parseFloat(sales.received).toFixed(2),
+          sold_liters:    parseFloat(sales.liters).toFixed(2),
           total_expenses: totalExpenses.toFixed(2),
           gross_profit:   grossProfit.toFixed(2),
           net_profit:     netProfit.toFixed(2),
-          margin_pct:     sales.revenue > 0 ? ((netProfit / parseFloat(sales.revenue)) * 100).toFixed(1) : '0.0',
+          margin_pct:     sales.revenue > 0
+                           ? ((netProfit / parseFloat(sales.revenue)) * 100).toFixed(1)
+                           : '0.0',
         },
         expense_breakdown: expBreakdown,
         farmer_breakdown:  farmerBreakdown,
         sales_breakdown:   salesBreakdown,
+        shop_breakdown:    shopBreakdown,
       },
     });
   } catch (err) { next(err); }
