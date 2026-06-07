@@ -21,6 +21,29 @@ const DEPT_PERMS = {
 };
 const ALL_PERMS = ['dashboard','milk','customers','customers_view','sales','billing','products','hr','expenses','reports','settings'];
 
+// Grouped for UI display — reports is NOT in any group (admin only)
+const PERM_GROUPS = [
+  { label:'Core',     icon:'📊', perms:['dashboard'] },
+  { label:'Milk',     icon:'🥛', perms:['milk','customers_view'] },
+  { label:'Sales',    icon:'🛒', perms:['sales','customers','products','billing'] },
+  { label:'Finance',  icon:'💰', perms:['expenses'] },
+  { label:'HR',       icon:'👥', perms:['hr'] },
+  { label:'Settings', icon:'⚙️', perms:['settings'] },
+];
+
+const PERM_DESC = {
+  dashboard:      'View dashboard & KPIs',
+  milk:           'Add / edit milk records',
+  customers:      'Manage customers',
+  customers_view: 'View customers (read-only)',
+  sales:          'Create & manage sales',
+  billing:        'Access billing & invoices',
+  products:       'Manage products & pricing',
+  hr:             'HR & payroll access',
+  expenses:       'Record & view expenses',
+  settings:       'System settings',
+};
+
 const deptColor = { milk_collection:'badge-blue', sales:'badge-green', accounts:'badge-yellow', hr:'badge-gray', manager:'bg-purple-100 text-purple-700', other:'badge-gray' };
 
 export default function HRPayroll() {
@@ -259,21 +282,64 @@ export default function HRPayroll() {
 
           {/* Permissions preview */}
           <div className="border border-slate-200 rounded-xl p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <Shield size={15} className="text-[#1d6faa]"/>
-              <p className="text-sm font-semibold text-slate-600">Access Permissions</p>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Shield size={15} className="text-[#1d6faa]"/>
+                <p className="text-sm font-semibold text-slate-700">Access Control</p>
+              </div>
+              <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-lg">
+                Financial Reports: Admin only
+              </span>
             </div>
-            <p className="text-xs text-slate-400">Department default: <span className="font-medium text-slate-600">{deptDefaultPerms.join(', ')}</span></p>
-            <p className="text-xs font-medium text-slate-600 mt-2">Extra permissions:</p>
-            <div className="flex flex-wrap gap-2">
-              {ALL_PERMS.filter(p=>!deptDefaultPerms.includes(p)).map(perm=>(
-                <button key={perm} type="button" onClick={()=>togglePerm(perm)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition capitalize
-                    ${form.extra_permissions.includes(perm)?'bg-[#1d6faa] text-white border-[#1d6faa]':'border-slate-200 text-slate-500 hover:border-[#1d6faa]'}`}>
-                  {perm}
-                </button>
+
+            <p className="text-xs text-slate-400 pb-1 border-b border-slate-100">
+              ✅ Auto-granted by department: <span className="font-semibold text-slate-600">{deptDefaultPerms.join(', ') || 'none'}</span>
+            </p>
+
+            <div className="space-y-3 pt-1">
+              {PERM_GROUPS.map(group => (
+                <div key={group.label}>
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    {group.icon} {group.label}
+                  </p>
+                  <div className="space-y-1">
+                    {group.perms.map(perm => {
+                      const isDefault = deptDefaultPerms.includes(perm);
+                      const isGranted = isDefault || form.extra_permissions.includes(perm);
+                      return (
+                        <label key={perm}
+                          className={`flex items-center justify-between px-3 py-2 rounded-xl border cursor-pointer transition
+                            ${isDefault
+                              ? 'bg-blue-50 border-blue-100 cursor-not-allowed opacity-70'
+                              : isGranted
+                                ? 'bg-emerald-50 border-emerald-200'
+                                : 'bg-white border-slate-200 hover:border-slate-300'}`}
+                        >
+                          <div>
+                            <p className={`text-xs font-semibold capitalize ${isDefault ? 'text-[#1d6faa]' : isGranted ? 'text-emerald-700' : 'text-slate-600'}`}>
+                              {perm.replace(/_/g,' ')}
+                              {isDefault && <span className="ml-1.5 text-[10px] font-normal text-blue-400">(default)</span>}
+                            </p>
+                            <p className="text-[10px] text-slate-400 mt-0.5">{PERM_DESC[perm]}</p>
+                          </div>
+                          <input
+                            type="checkbox"
+                            disabled={isDefault}
+                            checked={isGranted}
+                            onChange={() => !isDefault && togglePerm(perm)}
+                            className="w-4 h-4 accent-[#1d6faa] rounded cursor-pointer"
+                          />
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
               ))}
             </div>
+
+            <p className="text-[10px] text-slate-400 pt-1 border-t border-slate-100">
+              🔒 Financial Report access is restricted to Admin only and cannot be granted here.
+            </p>
           </div>
 
           {/* Login (only on add) */}

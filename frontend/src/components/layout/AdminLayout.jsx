@@ -15,7 +15,7 @@ const NAV_GROUPS=[
   {label:'Sales',items:[{to:'customers',icon:UserCheck,label:'Customers'},{to:'sales',icon:TrendingUp,label:'Sales'},{to:'walkin',icon:ShoppingBag,label:'Walk-in'},{to:'invoices',icon:FileText,label:'Invoices'},{to:'billing',icon:Receipt,label:'Billing'}]},
   {label:'Resources',items:[{to:'products',icon:Package,label:'Products'},{to:'vehicles',icon:Truck,label:'Vehicles'},{to:'shops',icon:Store,label:'Shops'},{to:'hr',icon:UserCheck2,label:'HR & Payroll'}]},
   {label:'Expenses',items:[{to:'expenses',icon:DollarSign,label:'Expenses'}]},
-  {label:'Reports',items:[{to:'reports',icon:BarChart3,label:'Reports'},{to:'audit',icon:Shield,label:'Audit Logs'}]},
+  {label:'Reports',adminOnly:true,items:[{to:'reports',icon:BarChart3,label:'Reports'},{to:'audit',icon:Shield,label:'Audit Logs'}]},
   {label:null,items:[{to:'settings',icon:Settings,label:'Settings'}]},
 ];
 
@@ -42,7 +42,7 @@ export default function AdminLayout() {
         <div className="min-w-0"><p className="text-white font-bold text-sm truncate">{appName}</p><p className="text-blue-300/70 text-xs">Management</p></div>
       </div>
       <nav className="flex-1 overflow-y-auto py-3 px-2 scrollbar-thin">
-        {NAV_GROUPS.map((group,gi)=>(
+        {NAV_GROUPS.filter(g=>!g.adminOnly||user?.role==='admin').map((group,gi)=>(
           <div key={gi} className={gi>0?'mt-1':''}>
             {group.label&&(
               <button onClick={()=>setCollapsed(p=>({...p,[group.label]:!p[group.label]}))}
