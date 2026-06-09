@@ -98,7 +98,11 @@ export default function Dashboard() {
     finally { setLoading(false); setSpinning(false); }
   }, []);
 
-  useEffect(() => { load('1d', '', ''); }, [load]);
+  useEffect(() => {
+    load('1d', '', '');
+    const iv = setInterval(() => load(tenure, dateFrom, dateTo), 5 * 60 * 1000);
+    return () => clearInterval(iv);
+  }, [load]);
 
   const handleTenure = t => {
     setTenure(t);

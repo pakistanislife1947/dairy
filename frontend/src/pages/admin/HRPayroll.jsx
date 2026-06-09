@@ -342,18 +342,51 @@ export default function HRPayroll() {
             </p>
           </div>
 
-          {/* Login (only on add) */}
+          {/* Portal Access — explicit opt-in */}
           {modal==='add' && (
-            <div className="border border-dashed border-[#d1dce8] rounded-xl p-4 space-y-3">
-              <p className="text-sm font-semibold text-slate-600">Staff Login (optional)</p>
-              <div><label className="label">Email</label>
-                <input type="email" value={form.email} onChange={e=>setForm(p=>({...p,email:e.target.value}))} className="input" placeholder="ali@dairy.local"/></div>
-              <div><label className="label">Password</label>
-                <div className="relative">
-                  <input type={showPass?'text':'password'} value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} className="input pr-10" placeholder="Min 8 characters"/>
-                  <button type="button" onClick={()=>setShowPass(p=>!p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">{showPass?<EyeOff size={15}/>:<Eye size={15}/>}</button>
+            <div className="border border-dashed border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50/50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">Portal Access</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Give this employee login access to the system</p>
                 </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox"
+                    checked={!!form.email}
+                    onChange={e => {
+                      if (!e.target.checked) setForm(p=>({...p,email:'',password:''}));
+                      else setForm(p=>({...p,email:p.email||''}));
+                    }}
+                    className="sr-only peer"/>
+                  <div className="w-10 h-5 bg-slate-200 peer-checked:bg-[#1d6faa] rounded-full transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5"/>
+                </label>
               </div>
+
+              {!!form.email && (
+                <div className="space-y-3 pt-1">
+                  <div>
+                    <label className="label">Login Email</label>
+                    <input type="email" value={form.email}
+                      onChange={e=>setForm(p=>({...p,email:e.target.value}))}
+                      className="input" placeholder="ali@dairy.local"/>
+                  </div>
+                  <div>
+                    <label className="label">Password</label>
+                    <div className="relative">
+                      <input type={showPass?'text':'password'} value={form.password}
+                        onChange={e=>setForm(p=>({...p,password:e.target.value}))}
+                        className="input pr-10" placeholder="Min 8 characters"/>
+                      <button type="button" onClick={()=>setShowPass(p=>!p)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                        {showPass?<EyeOff size={15}/>:<Eye size={15}/>}
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5">
+                    ⚠️ Only enable this if the employee needs to use the system. They will only see what their permissions allow.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
