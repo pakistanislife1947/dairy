@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { TrendingUp, Package, Truck, ChevronDown, ChevronUp, RefreshCw, Store, Droplets, Users, Calendar } from 'lucide-react';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import api from '../../api/client';
@@ -98,9 +98,17 @@ export default function Dashboard() {
     finally { setLoading(false); setSpinning(false); }
   }, []);
 
+  // Keep a ref so the interval always has current values
+  const tenureRef   = useRef(tenure);
+  const dateFromRef = useRef(dateFrom);
+  const dateToRef   = useRef(dateTo);
+  useEffect(() => { tenureRef.current   = tenure;   }, [tenure]);
+  useEffect(() => { dateFromRef.current = dateFrom; }, [dateFrom]);
+  useEffect(() => { dateToRef.current   = dateTo;   }, [dateTo]);
+
   useEffect(() => {
     load('1d', '', '');
-    const iv = setInterval(() => load(tenure, dateFrom, dateTo), 5 * 60 * 1000);
+    const iv = setInterval(() => load(tenureRef.current, dateFromRef.current, dateToRef.current), 5 * 60 * 1000);
     return () => clearInterval(iv);
   }, [load]);
 

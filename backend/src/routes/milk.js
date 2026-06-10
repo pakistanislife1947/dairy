@@ -127,8 +127,9 @@ router.post('/preview-rate', async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'fat_percentage, lactometer_reading, quantity_liters required.' });
     }
 
-    const cfg = await getPricingConfig();
-    validateConfig(cfg);
+    // Load config — fall back to defaults if settings not seeded yet
+    let cfg = {};
+    try { cfg = await getPricingConfig(); } catch {}
 
     const result = computeTS({
       cfg,
@@ -143,12 +144,7 @@ router.post('/preview-rate', async (req, res, next) => {
     }
 
     res.json({ success: true, data: result });
-  } catch (err) {
-    if (err.message?.includes('target_ts') || err.message?.includes('constant_c3')) {
-      return res.status(422).json({ success: false, message: err.message });
-    }
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 // ── GET single ────────────────────────────────────────────────────────────
@@ -181,8 +177,9 @@ router.post('/', rules, validate, async (req, res, next) => {
     );
     if (dup) return res.status(409).json({ success: false, message: `${shift} record for this farmer on ${collection_date} already exists.` });
 
-    // Pricing config
-    const cfg = await getPricingConfig();
+    // Pricing config — fall back to defaults if not seeded yet
+    let cfg = {};
+    try { cfg = await getPricingConfig(); } catch {}
     validateConfig(cfg);
 
     const { ts, standardised_ts, rate_per_unit, total_payout } = computeTS({
@@ -223,7 +220,8 @@ router.put('/:id', adminOnly, rules, validate, async (req, res, next) => {
     const { farmer_id, collection_date, shift, quantity_liters, fat_percentage,
             lactometer_reading, snf_percentage, notes } = req.body;
 
-    const cfg = await getPricingConfig();
+    let cfg = {};
+    try { cfg = await getPricingConfig(); } catch {}
     validateConfig(cfg);
 
     const { ts, standardised_ts, rate_per_unit, total_payout } = computeTS({
@@ -234,7 +232,6 @@ router.put('/:id', adminOnly, rules, validate, async (req, res, next) => {
     });
 
     await db.query(
-      `UPDATE milk_records SET
          farmer_id=$1, collection_date=$2, shift=$3, quantity_liters=$4,
          fat_percentage=$5, snf_percentage=$6, lactometer_reading=$7,
          ts_value=$8, standardised_ts=$9, computed_rate=$10, total_amount=$11, notes=$12
