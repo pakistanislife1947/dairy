@@ -1,226 +1,296 @@
-import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { Milk, Sun, Moon, Calculator, CheckCircle, ChevronDown, RefreshCw, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Milk, Sun, Moon, Calculator, CheckCircle, RefreshCw, AlertCircle, ChevronDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import api from '../../api/client';
 import useAuthStore from '../../store/authStore';
 
+const todayStr = () => format(new Date(), 'yyyy-MM-dd');
+const nowShift = () => parseInt(format(new Date(), 'HH')) < 12 ? 'morning' : 'evening';
+
+const emptyForm = () => ({
+  farmer_id:          '',
+  collection_date:    todayStr(),
+  shift:              nowShift(),
+  quantity_liters:    '',
+  fat_percentage:     '',
+  lactometer_reading: '',
+  snf_percentage:     '',
+  notes:              '',
+});
+
 export default function MilkEntry() {
   const { user } = useAuthStore();
-  const [farmers, setFarmers]     = useState([]);
-  const [preview, setPreview]     = useState(null);
-  const [previewing, setPrev]     = useState(false);
-  const [saving, setSaving]       = useState(false);
-  const [lastSaved, setLast]      = useState(null);
-  const [todayRecords, setToday]  = useState([]);
+  const [farmers,   setFarmers]   = useState([]);
+  const [form,      setForm]      = useState(emptyForm());
+  const [preview,   setPreview]   = useState(null);
+  const [prevLoad,  setPrevLoad]  = useState(false);
+  const [saving,    setSaving]    = useState(false);
+  const [lastSaved, setLastSaved] = useState(null);
+  const [today,     setToday]     = useState([]);
+  const [errors,    setErrors]    = useState({});
+  const debounce = useRef(null);
 
-  const todayStr = format(new Date(), 'yyyy-MM-dd');
-  const defaultShift = parseInt(format(new Date(), 'HH')) < 12 ? 'morning' : 'evening';
-
-  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm({
-    defaultValues: {
-      farmer_id:          '',
-      collection_date:    todayStr,
-      shift:              defaultShift,
-      quantity_liters:    '',
-      fat_percentage:     '',
-      lactometer_reading: '',
-      snf_percentage:     '',
-      notes:              '',
-    },
-  });
-
-  const [wFarmer, wFat, wLR, wQty, wShift] =
-    watch(['farmer_id', 'fat_percentage', 'lactometer_reading', 'quantity_liters', 'shift']);
-
+  // Load farmers once
   useEffect(() => {
     api.get('/farmers?limit=200&active=1')
       .then(r => setFarmers(r.data.data || []))
       .catch(() => toast.error('Could not load farmers'));
+    loadToday();
   }, []);
 
   const loadToday = () => {
-    api.get(`/milk?date_from=${todayStr}&date_to=${todayStr}&limit=50`)
+    const d = todayStr();
+    api.get(`/milk?date_from=${d}&date_to=${d}&limit=100`)
       .then(r => setToday(r.data.data || []))
       .catch(() => {});
   };
-  useEffect(() => { loadToday(); }, []);
 
-  // Live TS preview
+  const set = key => e => setForm(p => ({ ...p, [key]: e.target.value }));
+
+  // Live TS preview — debounced 600ms
   useEffect(() => {
-    if (!wFat || !wLR || !wQty || parseFloat(wQty) <= 0) { setPreview(null); return; }
-    const t = setTimeout(() => {
-      setPrev(true);
+    const { fat_percentage: fat, lactometer_reading: lr, quantity_liters: qty } = form;
+    if (!fat || !lr || !qty || parseFloat(qty) <= 0) { setPreview(null); return; }
+    clearTimeout(debounce.current);
+    debounce.current = setTimeout(() => {
+      setPrevLoad(true);
       api.post('/milk/preview-rate', {
-        fat_percentage: parseFloat(wFat),
-        lactometer_reading: parseFloat(wLR),
-        quantity_liters: parseFloat(wQty),
+        fat_percentage:     parseFloat(fat),
+        lactometer_reading: parseFloat(lr),
+        quantity_liters:    parseFloat(qty),
       })
         .then(r => setPreview(r.data.data))
         .catch(() => setPreview(null))
-        .finally(() => setPrev(false));
+        .finally(() => setPrevLoad(false));
     }, 600);
-    return () => clearTimeout(t);
-  }, [wFat, wLR, wQty]);
+    return () => clearTimeout(debounce.current);
+  }, [form.fat_percentage, form.lactometer_reading, form.quantity_liters]);
 
-  const onSubmit = async (data) => {
+  // Validate
+  const validate = () => {
+    const e = {};
+    if (!form.farmer_id)          e.farmer_id          = 'Select a farmer';
+    if (!form.quantity_liters || parseFloat(form.quantity_liters) <= 0) e.quantity_liters = 'Enter quantity';
+    if (!form.fat_percentage  || parseFloat(form.fat_percentage)  < 0)  e.fat_percentage  = 'Enter FAT %';
+    if (!form.lactometer_reading || parseFloat(form.lactometer_reading) < 0) e.lactometer_reading = 'Enter LR';
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const onSubmit = async e => {
+    e.preventDefault();
+    if (!validate()) return;
     setSaving(true);
     try {
-      const r = await api.post('/milk', data);
-      const result = r.data.data;
-      const farmer = farmers.find(f => String(f.id) === String(data.farmer_id));
+      // Always send numbers, never empty strings
+      const payload = {
+        farmer_id:          parseInt(form.farmer_id),
+        collection_date:    form.collection_date,
+        shift:              form.shift,
+        quantity_liters:    parseFloat(form.quantity_liters),
+        fat_percentage:     parseFloat(form.fat_percentage),
+        lactometer_reading: parseFloat(form.lactometer_reading),
+        snf_percentage:     form.snf_percentage ? parseFloat(form.snf_percentage) : null,
+        notes:              form.notes || null,
+      };
 
-      setLast({ farmer: farmer?.name || '', shift: data.shift, liters: data.quantity_liters, ts: result.ts });
+      const r = await api.post('/milk', payload);
+      const result = r.data.data || {};
+      const farmer = farmers.find(f => String(f.id) === String(form.farmer_id));
+
+      setLastSaved({
+        farmer: farmer?.name || '',
+        liters: form.quantity_liters,
+        fat:    form.fat_percentage,
+        lr:     form.lactometer_reading,
+        ts:     result.ts,
+      });
+
       toast.success('✓ Milk record saved');
-
-      setValue('quantity_liters', '');
-      setValue('fat_percentage',  '');
-      setValue('lactometer_reading', '');
-      setValue('snf_percentage',  '');
-      setValue('notes', '');
+      setForm(p => ({ ...emptyForm(), collection_date: p.collection_date, shift: p.shift }));
       setPreview(null);
+      setErrors({});
       loadToday();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to save');
+      const msg = err.response?.data?.message || err.response?.data?.errors?.[0]?.msg || 'Save failed';
+      toast.error(msg);
     } finally { setSaving(false); }
   };
 
-  const selectedFarmer = farmers.find(f => String(f.id) === String(wFarmer));
+  const selectedFarmer = farmers.find(f => String(f.id) === String(form.farmer_id));
 
   return (
-    <div className="space-y-5 pb-8">
+    <div className="space-y-5 pb-10 max-w-sm mx-auto">
+
+      {/* Header */}
       <div>
         <h1 className="text-xl font-bold text-slate-800">Milk Collection Entry</h1>
-        <p className="text-sm text-muted mt-0.5">{format(new Date(), 'EEEE, dd MMM yyyy')} · {format(new Date(), 'hh:mm a')}</p>
+        <p className="text-sm text-slate-400 mt-0.5">
+          {format(new Date(), 'EEEE, dd MMM yyyy')} · {format(new Date(), 'hh:mm a')}
+        </p>
       </div>
 
+      {/* Last saved badge */}
       {lastSaved && (
-        <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
-          <CheckCircle size={18} className="text-emerald-400 flex-shrink-0 mt-0.5"/>
+        <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-emerald-50 border border-emerald-200">
+          <CheckCircle size={16} className="text-emerald-500 mt-0.5 flex-shrink-0"/>
           <div className="text-sm">
-            <p className="font-semibold text-emerald-400">Last Saved</p>
-            <p className="text-emerald-300/80 text-xs mt-0.5">
-              {lastSaved.farmer} · {lastSaved.liters}L · TS: {lastSaved.ts}
+            <p className="font-semibold text-emerald-700">Last Saved</p>
+            <p className="text-emerald-600 text-xs mt-0.5">
+              {lastSaved.farmer} · {lastSaved.liters}L · FAT {lastSaved.fat}% · LR {lastSaved.lr}
+              {lastSaved.ts ? ` · TS ${lastSaved.ts}` : ''}
             </p>
           </div>
         </div>
       )}
 
-      {/* Shift */}
-      <div>
-        <label className="label">Shift *</label>
-        <div className="grid grid-cols-2 gap-3">
-          {['morning','evening'].map(s => (
-            <button key={s} type="button" onClick={() => setValue('shift', s)}
-              className={`flex items-center justify-center gap-2 py-4 rounded-2xl border-2 font-semibold text-sm transition-all
-                ${wShift === s
-                  ? s === 'morning' ? 'bg-amber-500/20 border-amber-500 text-amber-600' : 'bg-blue-500/20 border-blue-500 text-blue-600'
-                  : 'bg-white border-slate-200 text-slate-400'}`}>
-              {s === 'morning' ? <Sun size={18}/> : <Moon size={18}/>}
-              {s.charAt(0).toUpperCase() + s.slice(1)}
-            </button>
-          ))}
-        </div>
-      </div>
+      <form onSubmit={onSubmit} className="space-y-4">
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-
-        {/* Date — prefilled, shown read-only style */}
+        {/* Shift selector */}
         <div>
-          <label className="label">Date</label>
-          <input type="date" {...register('collection_date')}
-            className="input text-base py-3 bg-slate-50 font-mono"/>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Shift *</label>
+          <div className="grid grid-cols-2 gap-2.5">
+            {['morning','evening'].map(s => (
+              <button key={s} type="button"
+                onClick={() => setForm(p => ({ ...p, shift: s }))}
+                className={`flex items-center justify-center gap-2 py-3.5 rounded-2xl border-2 font-semibold text-sm transition-all
+                  ${form.shift === s
+                    ? s === 'morning'
+                      ? 'bg-amber-50 border-amber-400 text-amber-700'
+                      : 'bg-blue-50 border-blue-400 text-blue-700'
+                    : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'}`}>
+                {s === 'morning' ? <Sun size={17}/> : <Moon size={17}/>}
+                {s.charAt(0).toUpperCase() + s.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Date */}
+        <div>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Date</label>
+          <input type="date" value={form.collection_date}
+            onChange={set('collection_date')}
+            className="w-full border border-slate-200 rounded-xl px-3 py-3 text-sm font-mono bg-slate-50 focus:outline-none focus:border-[#1d6faa]"/>
         </div>
 
         {/* Farmer */}
         <div>
-          <label className="label">Farmer / Centre *</label>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Farmer / Centre *</label>
           <div className="relative">
-            <select {...register('farmer_id', { required: 'Select a farmer' })}
-              className="input text-base py-3.5 pr-10 appearance-none">
+            <select value={form.farmer_id} onChange={set('farmer_id')}
+              className={`w-full border rounded-xl px-3 py-3.5 text-sm appearance-none pr-10 bg-white focus:outline-none
+                ${errors.farmer_id ? 'border-red-400 focus:border-red-400' : 'border-slate-200 focus:border-[#1d6faa]'}`}>
               <option value="">Select farmer…</option>
-              {farmers.map(f => (
-                <option key={f.id} value={f.id}>{f.name} ({f.farmer_code})</option>
-              ))}
+              {farmers.map(f => <option key={f.id} value={f.id}>{f.name} ({f.farmer_code})</option>)}
             </select>
-            <ChevronDown size={18} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"/>
+            <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
           </div>
-          {errors.farmer_id && <p className="text-red-400 text-xs mt-1 flex items-center gap-1"><AlertCircle size={12}/>{errors.farmer_id.message}</p>}
+          {errors.farmer_id && <p className="text-red-500 text-xs mt-1 flex items-center gap-1"><AlertCircle size={11}/>{errors.farmer_id}</p>}
           {selectedFarmer && (
-            <div className="mt-2 px-3 py-2 rounded-xl bg-blue-50 border border-blue-100 text-xs text-slate-500 flex gap-4">
+            <div className="mt-1.5 px-3 py-2 rounded-xl bg-blue-50 border border-blue-100 text-xs text-slate-500 flex gap-4">
               <span>Code: <strong className="text-slate-700">{selectedFarmer.farmer_code}</strong></span>
-              <span>Village: <strong className="text-slate-700">{selectedFarmer.village || '—'}</strong></span>
+              {selectedFarmer.village && <span>Village: <strong className="text-slate-700">{selectedFarmer.village}</strong></span>}
             </div>
           )}
         </div>
 
-        {/* Quantity */}
+        {/* Milk Weight */}
         <div>
-          <label className="label">Milk Weight (KG / Litres) *</label>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Milk Weight (KG / Litres) *</label>
           <input type="number" inputMode="decimal" step="0.01" placeholder="0.00"
-            {...register('quantity_liters', { required: 'Required', min: { value: 0.01, message: 'Must be > 0' } })}
-            className="input text-xl font-mono font-bold py-4 text-center tracking-wide"/>
-          {errors.quantity_liters && <p className="text-red-400 text-xs mt-1">{errors.quantity_liters.message}</p>}
+            value={form.quantity_liters} onChange={set('quantity_liters')}
+            className={`w-full border rounded-xl px-3 py-4 text-2xl font-bold font-mono text-center tracking-wide focus:outline-none
+              ${errors.quantity_liters ? 'border-red-400' : 'border-slate-200 focus:border-[#1d6faa]'}`}/>
+          {errors.quantity_liters && <p className="text-red-500 text-xs mt-1">{errors.quantity_liters}</p>}
         </div>
 
-        {/* FAT + LR side by side */}
+        {/* FAT + LR */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="label">FAT % *</label>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">FAT % *</label>
             <input type="number" inputMode="decimal" step="0.01" placeholder="0.00"
-              {...register('fat_percentage', { required: 'Required', min:0, max:20 })}
-              className="input text-lg font-mono font-semibold py-3.5 text-center text-blue-600"/>
-            {errors.fat_percentage && <p className="text-red-400 text-xs mt-1">{errors.fat_percentage.message}</p>}
+              value={form.fat_percentage} onChange={set('fat_percentage')}
+              className={`w-full border rounded-xl px-3 py-3.5 text-xl font-bold font-mono text-center text-blue-600 focus:outline-none
+                ${errors.fat_percentage ? 'border-red-400' : 'border-slate-200 focus:border-[#1d6faa]'}`}/>
+            {errors.fat_percentage && <p className="text-red-500 text-xs mt-1">{errors.fat_percentage}</p>}
           </div>
           <div>
-            <label className="label">LR (Lactometer) *</label>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">LR (Lactometer) *</label>
             <input type="number" inputMode="decimal" step="0.1" placeholder="0.0"
-              {...register('lactometer_reading', { required: 'Required', min: { value: 0, message: 'Min 0' } })}
-              className="input text-lg font-mono font-semibold py-3.5 text-center text-violet-600"/>
-            {errors.lactometer_reading && <p className="text-red-400 text-xs mt-1">{errors.lactometer_reading.message}</p>}
+              value={form.lactometer_reading} onChange={set('lactometer_reading')}
+              className={`w-full border rounded-xl px-3 py-3.5 text-xl font-bold font-mono text-center text-violet-600 focus:outline-none
+                ${errors.lactometer_reading ? 'border-red-400' : 'border-slate-200 focus:border-[#1d6faa]'}`}/>
+            {errors.lactometer_reading && <p className="text-red-500 text-xs mt-1">{errors.lactometer_reading}</p>}
           </div>
+        </div>
+
+        {/* SNF */}
+        <div>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+            SNF % <span className="normal-case font-normal text-slate-400">(optional)</span>
+          </label>
+          <input type="number" inputMode="decimal" step="0.01" placeholder="0.00"
+            value={form.snf_percentage} onChange={set('snf_percentage')}
+            className="w-full border border-slate-200 rounded-xl px-3 py-3 text-lg font-mono text-center text-emerald-600 focus:outline-none focus:border-[#1d6faa]"/>
         </div>
 
         {/* Notes */}
         <div>
-          <label className="label">Notes <span className="text-muted normal-case font-normal">(optional)</span></label>
-          <input {...register('notes')} placeholder="Any remarks…" className="input py-3"/>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+            Notes <span className="normal-case font-normal text-slate-400">(optional)</span>
+          </label>
+          <input value={form.notes} onChange={set('notes')}
+            placeholder="Any remarks…"
+            className="w-full border border-slate-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-[#1d6faa]"/>
         </div>
 
-        {/* TS Preview — NO price shown for purchase role */}
-        {(preview || previewing) && (
+        {/* ── TS / SNF Preview Panel ─────────────────────────────── */}
+        {(prevLoad || preview) && (
           <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
-            {previewing ? (
-              <div className="flex items-center justify-center gap-2 text-blue-500 text-sm">
-                <RefreshCw size={15} className="animate-spin"/>Calculating TS…
-              </div>
-            ) : preview && (
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Calculator size={16} className="text-blue-500"/>
-                  <p className="text-sm font-semibold text-blue-700">TS Calculation Preview</p>
-                </div>
-                <div className="grid grid-cols-2 gap-3 text-center">
-                  <div className="bg-white rounded-xl p-3 border border-blue-100">
-                    <p className="text-xs text-slate-400 mb-1">Total Solids (TS)</p>
-                    <p className="font-bold text-xl font-mono text-blue-700">{preview.ts}</p>
+            <div className="flex items-center gap-2 mb-3">
+              <Calculator size={15} className="text-blue-500"/>
+              <p className="text-sm font-semibold text-blue-700">Live Calculation</p>
+              {prevLoad && <RefreshCw size={12} className="text-blue-400 animate-spin ml-auto"/>}
+            </div>
+
+            {preview && !prevLoad && (
+              <div className="space-y-2">
+                {/* Row 1: TS + Standardised */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-white rounded-xl p-3 border border-blue-100 text-center">
+                    <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">Total Solids (TS)</p>
+                    <p className="font-bold text-2xl font-mono text-blue-700">{preview.ts}</p>
                   </div>
-                  <div className="bg-white rounded-xl p-3 border border-blue-100">
-                    <p className="text-xs text-slate-400 mb-1">Standardised TS</p>
-                    <p className="font-bold text-xl font-mono text-violet-700">{preview.standardised_ts}</p>
+                  <div className="bg-white rounded-xl p-3 border border-blue-100 text-center">
+                    <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">Standardised TS</p>
+                    <p className="font-bold text-2xl font-mono text-violet-700">{preview.standardised_ts}</p>
                   </div>
                 </div>
-                {/* Show price ONLY if admin/non-purchase-staff */}
+
+                {/* SNF if entered */}
+                {form.snf_percentage && parseFloat(form.snf_percentage) > 0 && (
+                  <div className="bg-white rounded-xl p-3 border border-emerald-100 text-center">
+                    <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">SNF %</p>
+                    <p className="font-bold text-xl font-mono text-emerald-700">{parseFloat(form.snf_percentage).toFixed(2)}%</p>
+                  </div>
+                )}
+
+                {/* Price — only if backend returns it (admin sees, purchase staff doesn't) */}
                 {preview.rate_per_unit !== undefined && (
-                  <div className="grid grid-cols-2 gap-3 text-center mt-3">
-                    <div className="bg-white rounded-xl p-3 border border-emerald-100">
-                      <p className="text-xs text-slate-400 mb-1">Rate / Unit</p>
-                      <p className="font-bold text-lg font-mono text-emerald-700">Rs {Number(preview.rate_per_unit).toFixed(2)}</p>
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <div className="bg-white rounded-xl p-3 border border-slate-100 text-center">
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">Rate / Unit</p>
+                      <p className="font-bold text-base font-mono text-slate-700">
+                        Rs {Number(preview.rate_per_unit).toFixed(2)}
+                      </p>
                     </div>
-                    <div className="bg-white rounded-xl p-3 border border-emerald-100">
-                      <p className="text-xs text-slate-400 mb-1">Total Payout</p>
-                      <p className="font-bold text-xl font-mono text-emerald-700">Rs {Number(preview.total_payout).toLocaleString('en-PK', {maximumFractionDigits:0})}</p>
+                    <div className="bg-white rounded-xl p-3 border border-emerald-200 text-center">
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">Total Payout</p>
+                      <p className="font-bold text-xl font-mono text-emerald-700">
+                        Rs {Number(preview.total_payout).toLocaleString('en-PK', { maximumFractionDigits: 0 })}
+                      </p>
                     </div>
                   </div>
                 )}
@@ -229,43 +299,53 @@ export default function MilkEntry() {
           </div>
         )}
 
+        {/* Submit */}
         <button type="submit" disabled={saving}
-          className="w-full py-5 rounded-2xl bg-[#1d6faa] hover:bg-[#1557a0] active:scale-[0.98]
+          className="w-full py-4 rounded-2xl bg-[#1d6faa] hover:bg-[#1557a0] active:scale-[0.98]
                      text-white font-bold text-lg flex items-center justify-center gap-3
-                     transition-all disabled:opacity-60 shadow-lg">
+                     transition-all disabled:opacity-60 shadow-md mt-2">
           {saving
             ? <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"/>
-            : <><Milk size={22}/>Save Collection</>}
+            : <><Milk size={21}/>Save Collection</>}
         </button>
+
       </form>
 
       {/* Today's entries */}
-      {todayRecords.length > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide">Today's Entries ({todayRecords.length})</h3>
+      {today.length > 0 && (
+        <div className="space-y-2 pt-2">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            Today's Entries ({today.length})
+          </p>
           <div className="space-y-2">
-            {todayRecords.map(r => (
+            {today.map(r => (
               <div key={r.id} className="flex items-center justify-between px-4 py-3 rounded-xl bg-white border border-slate-200">
-                <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${r.shift==='morning'?'bg-amber-50':'bg-slate-100'}`}>
-                    {r.shift==='morning'?<Sun size={14} className="text-amber-500"/>:<Moon size={14} className="text-slate-400"/>}
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0
+                    ${r.shift==='morning' ? 'bg-amber-50' : 'bg-slate-100'}`}>
+                    {r.shift==='morning'
+                      ? <Sun size={14} className="text-amber-500"/>
+                      : <Moon size={14} className="text-slate-400"/>}
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-slate-700">{r.farmer_name}</p>
                     <p className="text-xs text-slate-400 font-mono">
-                      {parseFloat(r.quantity_liters).toFixed(1)}L · FAT {parseFloat(r.fat_percentage).toFixed(1)}%
-                      {r.lactometer_reading ? ` · LR ${r.lactometer_reading}` : ''}
+                      {parseFloat(r.quantity_liters).toFixed(1)}L
+                      {r.fat_percentage ? ` · FAT ${parseFloat(r.fat_percentage).toFixed(1)}%` : ''}
+                      {r.lactometer_reading ? ` · LR ${parseFloat(r.lactometer_reading).toFixed(1)}` : ''}
+                      {r.snf_percentage ? ` · SNF ${parseFloat(r.snf_percentage).toFixed(1)}%` : ''}
                     </p>
                   </div>
                 </div>
                 <div className="text-right">
-                  {r.ts_value ? <p className="text-xs font-mono text-blue-600">TS: {parseFloat(r.ts_value).toFixed(2)}</p> : null}
-                  {/* Price hidden from purchase employees by backend */}
-                  {r.total_amount !== undefined && r.total_amount !== null && (
-                    <p className="text-sm font-bold font-mono text-emerald-600">
-                      Rs {Number(r.total_amount).toLocaleString('en-PK',{maximumFractionDigits:0})}
-                    </p>
-                  )}
+                  {r.ts_value
+                    ? <p className="text-xs font-mono font-semibold text-blue-600">TS: {parseFloat(r.ts_value).toFixed(2)}</p>
+                    : null}
+                  {r.total_amount != null
+                    ? <p className="text-sm font-bold font-mono text-emerald-600">
+                        Rs {Number(r.total_amount).toLocaleString('en-PK', { maximumFractionDigits: 0 })}
+                      </p>
+                    : null}
                 </div>
               </div>
             ))}

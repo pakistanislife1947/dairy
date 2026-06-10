@@ -29,7 +29,7 @@ const rules = [
   body('shift').isIn(['morning', 'evening']),
   body('quantity_liters').isFloat({ min: 0.01 }),
   body('fat_percentage').isFloat({ min: 0, max: 20 }),
-  body('lactometer_reading').isFloat({ min: 0 }),
+  body('lactometer_reading').optional({ nullable: true }).isFloat({ min: 0 }),
   body('snf_percentage').optional({ nullable: true }).isFloat({ min: 0, max: 20 }),
   body('notes').optional({ nullable: true }).isString(),
 ];
