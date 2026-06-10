@@ -3,9 +3,25 @@ const { body } = require('express-validator');
 const db       = require('../config/db');
 const { validate }    = require('../middleware/validate');
 const { authenticate, adminOnly } = require('../middleware/auth');
-const { computeRate, computeAmount } = require('../utils/pricingEngine');
+const { computeTS, validateConfig } = require('../utils/pricingEngine');
 
 router.use(authenticate);
+
+// Helper: load pricing config from settings
+async function getPricingConfig() {
+  const [rows] = await db.query(
+    `SELECT key, value FROM settings
+     WHERE key IN ('target_ts','base_rate','constant_c1','constant_c2','constant_c3','constant_scale')`
+  );
+  const cfg = {};
+  rows.forEach(r => { cfg[r.key] = r.value; });
+  return cfg;
+}
+
+// Is this user a purchase-role employee? (no price visibility)
+function isPurchaseRole(user) {
+  return user?.role === 'staff' && user?.department === 'milk_collection';
+}
 
 const rules = [
   body('farmer_id').isInt({ min: 1 }),
@@ -13,198 +29,230 @@ const rules = [
   body('shift').isIn(['morning', 'evening']),
   body('quantity_liters').isFloat({ min: 0.01 }),
   body('fat_percentage').isFloat({ min: 0, max: 20 }),
+  body('lactometer_reading').isFloat({ min: 0 }),
   body('snf_percentage').optional({ nullable: true }).isFloat({ min: 0, max: 20 }),
   body('notes').optional({ nullable: true }).isString(),
 ];
 
-// GET /api/milk  — list with filters
+// ── GET list ──────────────────────────────────────────────────────────────
 router.get('/', async (req, res, next) => {
   try {
     const { farmer_id, date_from, date_to, shift, page = 1, limit = 50 } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    let sql = `
-      SELECT mr.*, f.name AS farmer_name, f.farmer_code,
+    let conditions = ['1=1'];
+    const params   = [];
+    let   pi       = 1;
+
+    // Purchase employees only see their own entries
+    if (isPurchaseRole(req.user)) {
+      conditions.push(`mr.recorded_by = $${pi++}`);
+      params.push(req.user.id);
+    }
+
+    if (farmer_id) { conditions.push(`mr.farmer_id = $${pi++}`);         params.push(farmer_id); }
+    if (date_from) { conditions.push(`mr.collection_date >= $${pi++}`);  params.push(date_from); }
+    if (date_to)   { conditions.push(`mr.collection_date <= $${pi++}`);  params.push(date_to); }
+    if (shift)     { conditions.push(`mr.shift = $${pi++}`);             params.push(shift); }
+
+    const where = conditions.join(' AND ');
+    const sql = `
+      SELECT mr.id, mr.farmer_id, mr.collection_date, mr.shift,
+             mr.quantity_liters, mr.fat_percentage, mr.snf_percentage,
+             mr.lactometer_reading, mr.ts_value, mr.standardised_ts,
+             mr.computed_rate, mr.total_amount,
+             mr.notes, mr.recorded_by, mr.created_at,
+             f.name AS farmer_name, f.farmer_code,
              u.name AS recorded_by_name
       FROM milk_records mr
       JOIN farmers f ON f.id = mr.farmer_id
       LEFT JOIN users u ON u.id = mr.recorded_by
-      WHERE 1=1`;
-    const params = [];
-
-    if (farmer_id)  { sql += ' AND mr.farmer_id = ?';         params.push(farmer_id); }
-    if (date_from)  { sql += ' AND mr.collection_date >= ?';   params.push(date_from); }
-    if (date_to)    { sql += ' AND mr.collection_date <= ?';   params.push(date_to); }
-    if (shift)      { sql += ' AND mr.shift = ?';              params.push(shift); }
-
-    sql += ' ORDER BY mr.collection_date DESC, mr.shift DESC, mr.created_at DESC LIMIT ? OFFSET ?';
+      WHERE ${where}
+      ORDER BY mr.collection_date DESC, mr.shift DESC, mr.created_at DESC
+      LIMIT $${pi++} OFFSET $${pi++}`;
     params.push(parseInt(limit), offset);
 
     const [rows] = await db.query(sql, params);
 
-    // Count
-    let cSql = 'SELECT COUNT(*) AS total FROM milk_records mr WHERE 1=1';
-    const cParams = [];
-    if (farmer_id) { cSql += ' AND mr.farmer_id = ?'; cParams.push(farmer_id); }
-    if (date_from) { cSql += ' AND mr.collection_date >= ?'; cParams.push(date_from); }
-    if (date_to)   { cSql += ' AND mr.collection_date <= ?'; cParams.push(date_to); }
-    if (shift)     { cSql += ' AND mr.shift = ?'; cParams.push(shift); }
-    const [_totalRows] = await db.query(cSql, cParams);
-      const total = _totalRows[0]?.total ?? 0;
+    // Hide pricing for purchase employees
+    const data = isPurchaseRole(req.user)
+      ? rows.map(r => ({ ...r, computed_rate: undefined, total_amount: undefined, ts_value: undefined, standardised_ts: undefined }))
+      : rows;
 
-    res.json({ success: true, data: rows, pagination: { page: +page, limit: +limit, total } });
+    const countRow = await db.queryOne(
+      `SELECT COUNT(*) AS total FROM milk_records mr WHERE ${where}`,
+      params.slice(0, -2)
+    );
+
+    res.json({ success: true, data, pagination: { page: +page, limit: +limit, total: Number(countRow?.total || 0) } });
   } catch (err) { next(err); }
 });
 
-// GET /api/milk/summary  — daily/shift totals
+// ── GET summary ───────────────────────────────────────────────────────────
 router.get('/summary', async (req, res, next) => {
   try {
     const { date_from, date_to } = req.query;
+    const from = date_from || new Date().toISOString().slice(0,10);
+    const to   = date_to   || new Date().toISOString().slice(0,10);
+
+    let extra = '';
+    const params = [from, to];
+    if (isPurchaseRole(req.user)) {
+      extra = ` AND recorded_by = $3`;
+      params.push(req.user.id);
+    }
+
     const [rows] = await db.query(
       `SELECT collection_date, shift,
-              COUNT(*)                     AS farmer_count,
-              SUM(quantity_liters)         AS total_liters,
-              AVG(fat_percentage)          AS avg_fat,
-              AVG(snf_percentage)          AS avg_snf,
-              SUM(total_amount)            AS total_amount
+              COUNT(*)               AS farmer_count,
+              SUM(quantity_liters)   AS total_liters,
+              AVG(fat_percentage)    AS avg_fat,
+              AVG(snf_percentage)    AS avg_snf,
+              SUM(total_amount)      AS total_amount
        FROM milk_records
-       WHERE collection_date BETWEEN ? AND ?
+       WHERE collection_date BETWEEN $1 AND $2 ${extra}
        GROUP BY collection_date, shift
        ORDER BY collection_date DESC, shift`,
-      [date_from || '2000-01-01', date_to || '2099-12-31']
+      params
     );
     res.json({ success: true, data: rows });
   } catch (err) { next(err); }
 });
 
-// GET /api/milk/preview-rate — compute rate before saving
-router.post('/preview-rate', authenticate, async (req, res, next) => {
+// ── POST preview-rate ─────────────────────────────────────────────────────
+router.post('/preview-rate', async (req, res, next) => {
   try {
-    const { farmer_id, fat_percentage, snf_percentage, quantity_liters } = req.body;
-    const [farmers] = await db.query(
-      'SELECT base_rate, ideal_fat, ideal_snf, fat_correction, snf_correction FROM farmers WHERE id = ? AND is_active = TRUE',
-      [farmer_id]
-    );
-    if (!farmers.length) return res.status(404).json({ success: false, message: 'Farmer not found.' });
-
-    const f = farmers[0];
-    const computed_rate = computeRate({
-      base_rate:      f.base_rate,
-      ideal_fat:      f.ideal_fat,
-      ideal_snf:      f.ideal_snf,
-      fat_correction: f.fat_correction,
-      snf_correction: f.snf_correction,
-      actual_fat:     parseFloat(fat_percentage),
-      actual_snf:     snf_percentage != null ? parseFloat(snf_percentage) : null,
-    });
-    const total_amount = computeAmount(quantity_liters, computed_rate);
-
-    res.json({ success: true, data: { computed_rate, total_amount } });
-  } catch (err) { next(err); }
-});
-
-// GET /api/milk/:id
-router.get('/:id', async (req, res, next) => {
-  try {
-    const [rows] = await db.query(
-      `SELECT mr.*, f.name AS farmer_name, f.farmer_code
-       FROM milk_records mr JOIN farmers f ON f.id = mr.farmer_id
-       WHERE mr.id = ?`,
-      [req.params.id]
-    );
-    if (!rows.length) return res.status(404).json({ success: false, message: 'Record not found.' });
-    res.json({ success: true, data: rows[0] });
-  } catch (err) { next(err); }
-});
-
-// POST /api/milk
-router.post('/', rules, validate, async (req, res, next) => {
-  try {
-    const { farmer_id, collection_date, shift, quantity_liters, fat_percentage, snf_percentage, notes } = req.body;
-
-    // Prevent duplicate shift entry
-    const [dup] = await db.query(
-      'SELECT id FROM milk_records WHERE farmer_id=? AND collection_date=? AND shift=?',
-      [farmer_id, collection_date, shift]
-    );
-    if (dup.length) {
-      return res.status(409).json({ success: false, message: `${shift} record for this farmer on ${collection_date} already exists.` });
+    const { fat_percentage, lactometer_reading, quantity_liters } = req.body;
+    if (!fat_percentage || !lactometer_reading || !quantity_liters) {
+      return res.status(400).json({ success: false, message: 'fat_percentage, lactometer_reading, quantity_liters required.' });
     }
 
-    // Fetch farmer pricing config
-    const [farmers] = await db.query(
-      'SELECT base_rate, ideal_fat, ideal_snf, fat_correction, snf_correction FROM farmers WHERE id = ? AND is_active = TRUE',
-      [farmer_id]
-    );
-    if (!farmers.length) return res.status(404).json({ success: false, message: 'Farmer not found or inactive.' });
+    const cfg = await getPricingConfig();
+    validateConfig(cfg);
 
-    const f = farmers[0];
-    const computed_rate = computeRate({
-      base_rate:      f.base_rate,
-      ideal_fat:      f.ideal_fat,
-      ideal_snf:      f.ideal_snf,
-      fat_correction: f.fat_correction,
-      snf_correction: f.snf_correction,
-      actual_fat:     parseFloat(fat_percentage),
-      actual_snf:     snf_percentage != null ? parseFloat(snf_percentage) : null,
+    const result = computeTS({
+      cfg,
+      fat:    parseFloat(fat_percentage),
+      lr:     parseFloat(lactometer_reading),
+      weight: parseFloat(quantity_liters),
     });
-    const total_amount = computeAmount(quantity_liters, computed_rate);
 
-    const [result] = await db.query(`INSERT INTO milk_records
-         (farmer_id, collection_date, shift, quantity_liters, fat_percentage, snf_percentage,
-          base_rate, fat_correction, snf_correction, computed_rate, total_amount, notes, recorded_by)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [farmer_id, collection_date, shift, quantity_liters, fat_percentage, snf_percentage || null,
-       f.base_rate, f.fat_correction, f.snf_correction, computed_rate, total_amount,
-       notes || null, req.user.id]
+    // Hide pricing for purchase employees
+    if (isPurchaseRole(req.user)) {
+      return res.json({ success: true, data: { ts: result.ts, standardised_ts: result.standardised_ts } });
+    }
+
+    res.json({ success: true, data: result });
+  } catch (err) {
+    if (err.message?.includes('target_ts') || err.message?.includes('constant_c3')) {
+      return res.status(422).json({ success: false, message: err.message });
+    }
+    next(err);
+  }
+});
+
+// ── GET single ────────────────────────────────────────────────────────────
+router.get('/:id', async (req, res, next) => {
+  try {
+    const row = await db.queryOne(
+      `SELECT mr.*, f.name AS farmer_name, f.farmer_code
+       FROM milk_records mr JOIN farmers f ON f.id = mr.farmer_id
+       WHERE mr.id = $1`,
+      [req.params.id]
     );
-
-    res.status(201).json({
-      success: true, message: 'Milk record saved.',
-      data: { id: result.insertId, computed_rate, total_amount },
-    });
+    if (!row) return res.status(404).json({ success: false, message: 'Record not found.' });
+    if (isPurchaseRole(req.user) && row.recorded_by !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Access denied.' });
+    }
+    res.json({ success: true, data: row });
   } catch (err) { next(err); }
 });
 
-// PUT /api/milk/:id  (admin only — corrections are sensitive)
-router.put('/:id', adminOnly, rules, validate, async (req, res, next) => {
+// ── POST create ───────────────────────────────────────────────────────────
+router.post('/', rules, validate, async (req, res, next) => {
   try {
-    const { farmer_id, collection_date, shift, quantity_liters, fat_percentage, snf_percentage, notes } = req.body;
+    const { farmer_id, collection_date, shift, quantity_liters, fat_percentage,
+            lactometer_reading, snf_percentage, notes } = req.body;
 
-    const [farmers] = await db.query(
-      'SELECT base_rate, ideal_fat, ideal_snf, fat_correction, snf_correction FROM farmers WHERE id = ?',
-      [farmer_id]
+    // Duplicate check
+    const dup = await db.queryOne(
+      'SELECT id FROM milk_records WHERE farmer_id=$1 AND collection_date=$2 AND shift=$3',
+      [farmer_id, collection_date, shift]
     );
-    if (!farmers.length) return res.status(404).json({ success: false, message: 'Farmer not found.' });
+    if (dup) return res.status(409).json({ success: false, message: `${shift} record for this farmer on ${collection_date} already exists.` });
 
-    const f = farmers[0];
-    const computed_rate = computeRate({
-      base_rate: f.base_rate, ideal_fat: f.ideal_fat, ideal_snf: f.ideal_snf,
-      fat_correction: f.fat_correction, snf_correction: f.snf_correction,
-      actual_fat: parseFloat(fat_percentage),
-      actual_snf: snf_percentage != null ? parseFloat(snf_percentage) : null,
+    // Pricing config
+    const cfg = await getPricingConfig();
+    validateConfig(cfg);
+
+    const { ts, standardised_ts, rate_per_unit, total_payout } = computeTS({
+      cfg,
+      fat:    parseFloat(fat_percentage),
+      lr:     parseFloat(lactometer_reading),
+      weight: parseFloat(quantity_liters),
     });
-    const total_amount = computeAmount(quantity_liters, computed_rate);
 
     const [result] = await db.query(
-      `UPDATE milk_records SET
-         farmer_id=?, collection_date=?, shift=?, quantity_liters=?, fat_percentage=?,
-         snf_percentage=?, computed_rate=?, total_amount=?, notes=?
-       WHERE id=?`,
+      `INSERT INTO milk_records
+         (farmer_id, collection_date, shift, quantity_liters, fat_percentage, snf_percentage,
+          lactometer_reading, ts_value, standardised_ts, computed_rate, total_amount,
+          notes, recorded_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+       RETURNING id`,
       [farmer_id, collection_date, shift, quantity_liters, fat_percentage,
-       snf_percentage || null, computed_rate, total_amount, notes || null, req.params.id]
+       snf_percentage || null, lactometer_reading, ts, standardised_ts,
+       rate_per_unit, total_payout, notes || null, req.user.id]
     );
-    if (!result.affectedRows) return res.status(404).json({ success: false, message: 'Record not found.' });
-    res.json({ success: true, message: 'Milk record updated.', data: { computed_rate, total_amount } });
+
+    const responseData = isPurchaseRole(req.user)
+      ? { id: result[0]?.id, ts, standardised_ts }
+      : { id: result[0]?.id, ts, standardised_ts, computed_rate: rate_per_unit, total_amount: total_payout };
+
+    res.status(201).json({ success: true, message: 'Milk record saved.', data: responseData });
+  } catch (err) {
+    if (err.message?.includes('target_ts') || err.message?.includes('constant_c3')) {
+      return res.status(422).json({ success: false, message: err.message });
+    }
+    next(err);
+  }
+});
+
+// ── PUT update (admin only) ───────────────────────────────────────────────
+router.put('/:id', adminOnly, rules, validate, async (req, res, next) => {
+  try {
+    const { farmer_id, collection_date, shift, quantity_liters, fat_percentage,
+            lactometer_reading, snf_percentage, notes } = req.body;
+
+    const cfg = await getPricingConfig();
+    validateConfig(cfg);
+
+    const { ts, standardised_ts, rate_per_unit, total_payout } = computeTS({
+      cfg,
+      fat:    parseFloat(fat_percentage),
+      lr:     parseFloat(lactometer_reading),
+      weight: parseFloat(quantity_liters),
+    });
+
+    await db.query(
+      `UPDATE milk_records SET
+         farmer_id=$1, collection_date=$2, shift=$3, quantity_liters=$4,
+         fat_percentage=$5, snf_percentage=$6, lactometer_reading=$7,
+         ts_value=$8, standardised_ts=$9, computed_rate=$10, total_amount=$11, notes=$12
+       WHERE id=$13`,
+      [farmer_id, collection_date, shift, quantity_liters, fat_percentage,
+       snf_percentage || null, lactometer_reading, ts, standardised_ts,
+       rate_per_unit, total_payout, notes || null, req.params.id]
+    );
+
+    res.json({ success: true, message: 'Updated.', data: { ts, standardised_ts, computed_rate: rate_per_unit, total_amount: total_payout } });
   } catch (err) { next(err); }
 });
 
-// DELETE /api/milk/:id (admin only)
+// ── DELETE (admin only) ───────────────────────────────────────────────────
 router.delete('/:id', adminOnly, async (req, res, next) => {
   try {
-    const [result] = await db.query('DELETE FROM milk_records WHERE id = ?', [req.params.id]);
-    if (!result.affectedRows) return res.status(404).json({ success: false, message: 'Record not found.' });
-    res.json({ success: true, message: 'Record deleted.' });
+    await db.query('DELETE FROM milk_records WHERE id=$1', [req.params.id]);
+    res.json({ success: true, message: 'Deleted.' });
   } catch (err) { next(err); }
 });
 

@@ -148,6 +148,53 @@ export default function Settings() {
         ))}
         <p className="text-xs text-slate-400">Saves automatically when you leave the field.</p>
       </div>
+
+      {/* Pricing Configuration */}
+      <div className="card space-y-4">
+        <div>
+          <h2 className="font-semibold text-slate-700">Milk Pricing Configuration</h2>
+          <p className="text-xs text-slate-400 mt-0.5">
+            TS formula: X = (c1 × FAT) + c2 + (LR ÷ c3) + FAT &nbsp;·&nbsp;
+            Standardised = X × (scale ÷ target_ts) &nbsp;·&nbsp;
+            Rate = Standardised × base_rate
+          </p>
+        </div>
+        {[
+          { key:'target_ts',      label:'Target TS',        hint:'Standard total solids target (default 13.00)',     type:'number', step:'0.01' },
+          { key:'base_rate',      label:'Base Rate (Rs)',    hint:'Price per standardised unit — set by admin',       type:'number', step:'0.0001' },
+          { key:'constant_c1',    label:'Constant C1',       hint:'FAT multiplier (default 0.22)',                    type:'number', step:'0.0001' },
+          { key:'constant_c2',    label:'Constant C2',       hint:'Base addition constant (default 0.72)',            type:'number', step:'0.0001' },
+          { key:'constant_c3',    label:'Constant C3 (LR÷)', hint:'Lactometer reading divisor — cannot be 0 (default 4.00)', type:'number', step:'0.0001' },
+          { key:'constant_scale', label:'Scale Factor',      hint:'Formula scaling factor (default 200.00)',          type:'number', step:'0.01' },
+        ].map(({ key, label, hint, type, step }) => (
+          <div key={key} className="flex items-start gap-4">
+            <div className="w-44 shrink-0">
+              <p className="text-sm font-medium text-slate-700">{label}</p>
+              <p className="text-xs text-slate-400 mt-0.5 leading-snug">{hint}</p>
+            </div>
+            <input
+              type={type}
+              step={step}
+              defaultValue={settings[key] || ''}
+              onBlur={e => {
+                const v = e.target.value;
+                if (key === 'target_ts' && (parseFloat(v) === 0 || !v)) {
+                  toast.error('target_ts cannot be zero'); return;
+                }
+                if (key === 'constant_c3' && (parseFloat(v) === 0 || !v)) {
+                  toast.error('constant_c3 cannot be zero'); return;
+                }
+                saveSetting(key, v);
+              }}
+              className="input flex-1 font-mono"
+            />
+          </div>
+        ))}
+        <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3 text-xs text-amber-700">
+          ⚠️ <strong>target_ts</strong> and <strong>constant_c3</strong> must never be set to zero — system will block calculations.
+          Changes here take effect on the <strong>next</strong> milk collection entry.
+        </div>
+      </div>
     </div>
   );
 }
