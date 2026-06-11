@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import api from '../../api/client';
 
 const todayStr = () => format(new Date(), 'yyyy-MM-dd');
+const autoShift = () => parseInt(format(new Date(), 'HH')) < 12 ? 'morning' : 'evening';
 
 const emptyForm = () => ({
   farmer_id:          '',
@@ -13,6 +14,7 @@ const emptyForm = () => ({
   fat_percentage:     '',
   lactometer_reading: '',
   snf_percentage:     '',
+  target_ts:          '13',
   shop_id:            '',
   notes:              '',
 });
@@ -55,13 +57,14 @@ export default function MilkEntry() {
         fat_percentage:     parseFloat(fat),
         lactometer_reading: parseFloat(lr),
         quantity_liters:    parseFloat(qty),
+        target_ts:          parseFloat(form.target_ts) || 13,
       })
         .then(r => setPreview(r.data.data))
         .catch(() => setPreview(null))
         .finally(() => setPrevLoad(false));
     }, 600);
     return () => clearTimeout(debounce.current);
-  }, [form.fat_percentage, form.lactometer_reading, form.quantity_liters]);
+  }, [form.fat_percentage, form.lactometer_reading, form.quantity_liters, form.target_ts]);
 
   const validate = () => {
     const e = {};
@@ -81,10 +84,12 @@ export default function MilkEntry() {
       const payload = {
         farmer_id:          parseInt(form.farmer_id),
         collection_date:    form.collection_date,
+        shift:              autoShift(),  // keeps old backend happy
         quantity_liters:    parseFloat(form.quantity_liters),
         fat_percentage:     parseFloat(form.fat_percentage),
         lactometer_reading: parseFloat(form.lactometer_reading),
         snf_percentage:     form.snf_percentage ? parseFloat(form.snf_percentage) : null,
+        target_ts:          parseFloat(form.target_ts) || 13,
         shop_id:            form.shop_id ? parseInt(form.shop_id) : null,
         notes:              form.notes || null,
       };
@@ -227,6 +232,16 @@ export default function MilkEntry() {
                 ${errors.lactometer_reading ? 'border-red-400' : 'border-slate-200 focus:border-[#1d6faa]'}`}/>
             {errors.lactometer_reading && <p className="text-red-500 text-xs mt-1">{errors.lactometer_reading}</p>}
           </div>
+        </div>
+
+        {/* TS Standard — editable, default 13 */}
+        <div>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+            TS Standard <span className="normal-case font-normal text-slate-400">(default: 13)</span>
+          </label>
+          <input type="number" inputMode="decimal" step="0.01" placeholder="13"
+            value={form.target_ts} onChange={set('target_ts')}
+            className="w-full border border-slate-200 rounded-xl px-3 py-3 text-base font-mono text-center text-slate-600 focus:outline-none focus:border-[#1d6faa]"/>
         </div>
 
         {/* Drop to Shop */}

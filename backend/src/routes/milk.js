@@ -20,13 +20,14 @@ async function getPricingConfig() {
 const isPurchase = user => user?.role === 'staff' && user?.department === 'milk_collection';
 
 const rules = [
-  body('farmer_id').isInt({ min: 1 }),
-  body('collection_date').isDate(),
-  body('quantity_liters').isFloat({ min: 0.01 }),
-  body('fat_percentage').isFloat({ min: 0, max: 20 }),
+  body('farmer_id').notEmpty().withMessage('farmer_id required'),
+  body('collection_date').notEmpty().withMessage('collection_date required'),
+  body('quantity_liters').isFloat({ min: 0.001 }).withMessage('quantity_liters must be > 0'),
+  body('fat_percentage').isFloat({ min: 0, max: 100 }).withMessage('fat_percentage invalid'),
   body('lactometer_reading').optional({ nullable: true }).isFloat({ min: 0 }),
-  body('snf_percentage').optional({ nullable: true }).isFloat({ min: 0, max: 20 }),
+  body('snf_percentage').optional({ nullable: true }).isFloat({ min: 0, max: 100 }),
   body('shop_id').optional({ nullable: true }).isInt({ min: 1 }),
+  body('shift').optional({ nullable: true }).isString(),
   body('notes').optional({ nullable: true }).isString(),
 ];
 
@@ -80,12 +81,15 @@ router.get('/', async (req, res, next) => {
 // ── POST preview-rate ─────────────────────────────────────────────────────
 router.post('/preview-rate', async (req, res, next) => {
   try {
-    const { fat_percentage, lactometer_reading, quantity_liters } = req.body;
+    const { fat_percentage, lactometer_reading, quantity_liters, target_ts } = req.body;
     if (!fat_percentage || !lactometer_reading || !quantity_liters)
       return res.status(400).json({ success: false, message: 'fat_percentage, lactometer_reading, quantity_liters required.' });
 
     let cfg = {};
     try { cfg = await getPricingConfig(); } catch {}
+
+    // Allow per-request target_ts override (default 13)
+    if (target_ts && parseFloat(target_ts) > 0) cfg.target_ts = target_ts;
 
     const result = computeTS({
       cfg,
@@ -113,11 +117,12 @@ router.post('/', rules, validate, async (req, res, next) => {
   try {
     const {
       farmer_id, collection_date, quantity_liters, fat_percentage,
-      lactometer_reading, snf_percentage, shop_id, notes
+      lactometer_reading, snf_percentage, shop_id, notes, target_ts
     } = req.body;
 
     let cfg = {};
     try { cfg = await getPricingConfig(); } catch {}
+    if (target_ts && parseFloat(target_ts) > 0) cfg.target_ts = target_ts;
 
     const lr = lactometer_reading ? parseFloat(lactometer_reading) : 0;
 
@@ -137,8 +142,9 @@ router.post('/', rules, validate, async (req, res, next) => {
           sp_gravity, computed_rate, total_amount, shop_id, notes, recorded_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
        RETURNING id`,
-      [farmer_id, collection_date, collection_time, quantity_liters, fat_percentage,
-       snf_percentage || null, lr, ts, standardised_ts, snf_computed,
+      [farmer_id, collection_date, collection_time, parseFloat(quantity_liters),
+       parseFloat(fat_percentage), snf_percentage ? parseFloat(snf_percentage) : null,
+       lr, ts, standardised_ts, snf_computed,
        sp_gravity, rate_per_unit, total_payout, shop_id || null, notes || null, req.user.id]
     );
 
