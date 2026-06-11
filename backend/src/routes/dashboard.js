@@ -92,16 +92,20 @@ dashRouter.get('/', async (req, res, next) => {
 
     // ── Purchase Breakdown (per farmer/collection centre) ────────────
     const [purchaseBreakdown] = await db.query(
-      `SELECT f.name AS farmer_name, f.farmer_code,
+      `SELECT f.name AS farmer_name,
+              COALESCE(f.centre_name, f.name) AS centre_name,
+              f.farmer_code,
               COALESCE(f.village, f.address, '—') AS location,
               SUM(mr.quantity_liters) AS liters,
               SUM(mr.total_amount)    AS amount,
               AVG(mr.fat_percentage)  AS avg_fat,
-              COUNT(*)                AS records
+              COUNT(*)                AS records,
+              MODE() WITHIN GROUP (ORDER BY s.shop_name) AS shop_name
        FROM milk_records mr
        JOIN farmers f ON f.id = mr.farmer_id
+       LEFT JOIN shops s ON s.id = mr.shop_id
        WHERE mr.collection_date BETWEEN $1 AND $2
-       GROUP BY mr.farmer_id, f.name, f.farmer_code, f.village, f.address
+       GROUP BY mr.farmer_id, f.name, f.centre_name, f.farmer_code, f.village, f.address
        ORDER BY liters DESC`,
       [periodStart, periodEnd]
     );
@@ -130,12 +134,12 @@ dashRouter.get('/', async (req, res, next) => {
     );
 
     const [topFarmers] = await db.query(
-      `SELECT f.name, f.farmer_code,
+      `SELECT f.name, COALESCE(f.centre_name, f.name) AS centre_name, f.farmer_code,
               SUM(mr.quantity_liters) AS liters,
               SUM(mr.total_amount)    AS amount
        FROM milk_records mr JOIN farmers f ON f.id = mr.farmer_id
        WHERE mr.collection_date BETWEEN $1 AND $2
-       GROUP BY mr.farmer_id, f.name, f.farmer_code
+       GROUP BY mr.farmer_id, f.name, f.centre_name, f.farmer_code
        ORDER BY liters DESC LIMIT 5`,
       [periodStart, periodEnd]
     );
@@ -170,3 +174,65 @@ dashRouter.get('/', async (req, res, next) => {
 });
 
 module.exports = dashRouter;
+
+// ── Staff/Purchase dashboard ──────────────────────────────────────────────
+const staffDashRouter = require('express').Router();
+const staffDb = require('../config/db');
+const { authenticate: staffAuth } = require('../middleware/auth');
+
+staffDashRouter.use(staffAuth);
+
+staffDashRouter.get('/', async (req, res, next) => {
+  try {
+    const { tenure = '1d', date_from, date_to } = req.query;
+    const userId = req.user.id;
+
+    const today = new Date();
+    const pad   = n => String(n).padStart(2, '0');
+    const fmt   = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+
+    let periodStart, periodEnd;
+    if (tenure === 'custom' && date_from && date_to) {
+      periodStart = date_from; periodEnd = date_to;
+    } else {
+      periodEnd = fmt(today);
+      if (tenure === '7d') {
+        const s = new Date(today); s.setDate(s.getDate()-6); periodStart = fmt(s);
+      } else if (tenure === '30d') {
+        const s = new Date(today); s.setDate(s.getDate()-29); periodStart = fmt(s);
+      } else {
+        periodStart = fmt(today);
+      }
+    }
+
+    const kpi = await staffDb.queryOne(
+      `SELECT
+         COALESCE(SUM(quantity_liters),0) AS total_liters,
+         COALESCE(AVG(fat_percentage),0)  AS avg_fat,
+         COALESCE(AVG(snf_computed),0)    AS avg_snf,
+         COALESCE(AVG(ts_value),0)        AS avg_ts,
+         COUNT(*)                         AS entries
+       FROM milk_records
+       WHERE recorded_by=$1 AND collection_date BETWEEN $2 AND $3`,
+      [userId, periodStart, periodEnd]
+    );
+
+    const [details] = await staffDb.query(
+      `SELECT mr.id, mr.collection_date, mr.collection_time,
+              mr.quantity_liters, mr.fat_percentage, mr.snf_computed,
+              mr.lactometer_reading, mr.ts_value, mr.standardised_ts,
+              f.name AS farmer_name, COALESCE(f.centre_name, f.name) AS centre_name, f.farmer_code,
+              s.shop_name
+       FROM milk_records mr
+       JOIN farmers f ON f.id = mr.farmer_id
+       LEFT JOIN shops s ON s.id = mr.shop_id
+       WHERE mr.recorded_by=$1 AND mr.collection_date BETWEEN $2 AND $3
+       ORDER BY mr.collection_date DESC, mr.collection_time DESC`,
+      [userId, periodStart, periodEnd]
+    );
+
+    res.json({ success: true, data: { tenure, period: { from: periodStart, to: periodEnd }, kpi, details } });
+  } catch (err) { next(err); }
+});
+
+module.exports.staffDashRouter = staffDashRouter;

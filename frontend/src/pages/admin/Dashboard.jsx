@@ -129,7 +129,7 @@ export default function Dashboard() {
   });
 
   const topFarmers = (data?.top_farmers || []).map(f => ({
-    name: f.name?.split(' ')[0] || f.name,
+    name: (f.centre_name || f.name)?.split(' ')[0] || f.name,
     Litres: +f.liters || 0,
   }));
 
@@ -227,7 +227,7 @@ export default function Dashboard() {
           <KPICard
             label="Total Purchase"
             value={fmtPKR(kpi.purchase_cost)}
-            sub={`${fmtL(kpi.total_liters)} from ${kpi.active_farmers || 0} farmers`}
+            sub={`${fmtL(kpi.total_liters)} from ${kpi.active_farmers || 0} centres`}
             icon={Truck}
             color={{ bg:'bg-blue-50', icon:'text-[#1d6faa]', val:'text-slate-800' }}
             expandable expanded={purchOpen} onToggle={() => setPurchOpen(p => !p)}
@@ -237,8 +237,11 @@ export default function Dashboard() {
               : purchases.map((p, i) => (
                 <div key={i} className="flex justify-between items-start text-xs py-2 border-b border-slate-50 last:border-0">
                   <div>
-                    <p className="font-semibold text-slate-700">{p.farmer_name}</p>
-                    <p className="text-slate-400 mt-0.5">{p.location || '—'} · FAT {fmtPct(p.avg_fat)}</p>
+                    <p className="font-semibold text-slate-700">{p.centre_name || p.farmer_name}</p>
+                    <p className="text-slate-400 mt-0.5">
+                      {p.location || '—'} · FAT {fmtPct(p.avg_fat)}
+                      {p.shop_name ? <span className="ml-1 text-[#1d6faa]">→ {p.shop_name}</span> : null}
+                    </p>
                   </div>
                   <div className="text-right">
                     <p className="font-mono font-bold text-slate-700">{fmtL(p.liters)}</p>

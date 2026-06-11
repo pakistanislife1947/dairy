@@ -104,6 +104,8 @@ app.use('/api/expenses',  require('./src/routes/expenses'));
 app.use('/api/reports',   require('./src/routes/reports'));
 app.use('/api/audit',     require('./src/routes/audit'));
 app.use('/api/dashboard', require('./src/routes/dashboard'));
+const { staffDashRouter } = require('./src/routes/dashboard');
+app.use('/api/staff/dashboard', staffDashRouter);
 
 const settingsRoutes = require('./src/routes/settings');
 app.use('/api/settings', settingsRoutes);
