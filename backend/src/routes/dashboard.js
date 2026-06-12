@@ -173,7 +173,7 @@ dashRouter.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-module.exports = dashRouter;
+module.exports = { dashRouter, staffDashRouter };
 
 // ── Staff/Purchase dashboard ──────────────────────────────────────────────
 const staffDashRouter = require('express').Router();
@@ -209,25 +209,47 @@ staffDashRouter.get('/', async (req, res, next) => {
       `SELECT
          COALESCE(SUM(quantity_liters),0) AS total_liters,
          COALESCE(AVG(fat_percentage),0)  AS avg_fat,
-         COALESCE(AVG(snf_computed),0)    AS avg_snf,
-         COALESCE(AVG(ts_value),0)        AS avg_ts,
-         COUNT(*)                         AS entries
+         COALESCE(AVG(
+           CASE WHEN lactometer_reading IS NOT NULL AND lactometer_reading > 0
+                THEN (lactometer_reading / 4.0) + 0.2
+                ELSE NULL END
+         ),0) AS avg_snf,
+         COALESCE(AVG(
+           CASE WHEN ts_value IS NOT NULL AND ts_value > 0 THEN ts_value
+                WHEN lactometer_reading IS NOT NULL AND fat_percentage IS NOT NULL
+                THEN (0.22 * fat_percentage) + 0.72 + (lactometer_reading / 4.0) + fat_percentage
+                ELSE NULL END
+         ),0) AS avg_ts,
+         COUNT(*) AS entries
        FROM milk_records
        WHERE recorded_by=$1 AND collection_date BETWEEN $2 AND $3`,
       [userId, periodStart, periodEnd]
     );
 
     const [details] = await staffDb.query(
-      `SELECT mr.id, mr.collection_date, mr.collection_time,
-              mr.quantity_liters, mr.fat_percentage, mr.snf_computed,
-              mr.lactometer_reading, mr.ts_value, mr.standardised_ts,
-              f.name AS farmer_name, COALESCE(f.centre_name, f.name) AS centre_name, f.farmer_code,
+      `SELECT mr.id, mr.collection_date,
+              mr.collection_time,
+              mr.quantity_liters, mr.fat_percentage,
+              mr.lactometer_reading,
+              CASE WHEN mr.ts_value IS NOT NULL AND mr.ts_value > 0 THEN mr.ts_value
+                   WHEN mr.lactometer_reading IS NOT NULL AND mr.fat_percentage IS NOT NULL
+                   THEN ROUND(((0.22 * mr.fat_percentage) + 0.72 + (mr.lactometer_reading / 4.0) + mr.fat_percentage)::numeric, 4)
+                   ELSE 0 END AS ts_value,
+              CASE WHEN mr.lactometer_reading IS NOT NULL
+                   THEN ROUND(((mr.lactometer_reading / 4.0) + 0.2)::numeric, 3)
+                   ELSE 0 END AS snf_computed,
+              CASE WHEN mr.lactometer_reading IS NOT NULL
+                   THEN ROUND((1 + mr.lactometer_reading / 1000.0)::numeric, 3)
+                   ELSE 1 END AS sp_gravity,
+              f.name AS farmer_name,
+              COALESCE(f.centre_name, f.name) AS centre_name,
+              f.farmer_code,
               s.shop_name
        FROM milk_records mr
        JOIN farmers f ON f.id = mr.farmer_id
        LEFT JOIN shops s ON s.id = mr.shop_id
        WHERE mr.recorded_by=$1 AND mr.collection_date BETWEEN $2 AND $3
-       ORDER BY mr.collection_date DESC, mr.collection_time DESC`,
+       ORDER BY mr.collection_date DESC, mr.collection_time DESC NULLS LAST`,
       [userId, periodStart, periodEnd]
     );
 
@@ -235,4 +257,4 @@ staffDashRouter.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-module.exports.staffDashRouter = staffDashRouter;
+// staffDashRouter exported above

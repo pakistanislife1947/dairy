@@ -99,19 +99,36 @@ export default function MilkEntry() {
       const centre = centres.find(c => String(c.id) === String(form.farmer_id));
       const shop   = shops.find(s => String(s.id) === String(form.shop_id));
 
-      // Show result panel (like image 3)
+      // Calculate locally from preview OR compute inline
+      const fat    = parseFloat(form.fat_percentage);
+      const lr     = parseFloat(form.lactometer_reading);
+      const litres = parseFloat(form.quantity_liters);
+      const ts_std = parseFloat(form.target_ts) || 13;
+
+      // Formula: X = (0.22*fat) + 0.72 + (lr/4) + fat
+      const X          = (0.22 * fat) + 0.72 + (lr / 4) + fat;
+      const std_ts     = X * (200 / ts_std);
+      const snf        = (lr / 4) + 0.2;
+      const sp_gravity = 1 + (lr / 1000);
+      // TS Milk Quantity = (litres * ts_std) / X  (adjusting to standard)
+      const ts_milk_qty = litres > 0 && X > 0 ? (litres * ts_std) / X : 0;
+      // Milk in KGs = litres * sp_gravity
+      const milk_kg = litres * sp_gravity;
+
       setResult({
-        centre:    centre?.centre_name || centre?.name || '',
-        shop:      shop?.shop_name || '—',
-        liters:    form.quantity_liters,
-        fat:       form.fat_percentage,
-        lr:        form.lactometer_reading,
-        snf:       data.snf_computed,
-        ts:        data.ts,
-        sp_gravity:data.sp_gravity,
-        // rate/amount only if returned (admin sees, purchase staff doesn't)
-        rate:      data.rate_per_unit,
-        amount:    data.total_payout,
+        centre:       centre?.centre_name || centre?.name || '',
+        shop:         shop?.shop_name || '—',
+        liters:       litres.toFixed(1),
+        fat:          fat.toFixed(2),
+        lr:           lr.toFixed(1),
+        snf:          (data.snf_computed || snf).toFixed(3),
+        ts:           (data.ts || X).toFixed(3),
+        standardised_ts: (data.standardised_ts || std_ts).toFixed(3),
+        ts_milk_qty:  ts_milk_qty.toFixed(3),
+        milk_kg:      milk_kg.toFixed(1),
+        sp_gravity:   (data.sp_gravity || sp_gravity).toFixed(3),
+        rate:         data.rate_per_unit,
+        amount:       data.total_payout,
       });
 
       toast.success('✓ Saved');
@@ -139,33 +156,34 @@ export default function MilkEntry() {
         </p>
       </div>
 
-      {/* Result Panel (shown after save — like image 3) */}
+      {/* Result Panel — matches image 3 */}
       {result && (
-        <div className="rounded-2xl border border-blue-200 bg-white shadow-sm overflow-hidden">
-          <div className="bg-[#1d6faa] px-4 py-3">
-            <p className="text-white font-bold text-center text-base">Result</p>
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-md overflow-hidden">
+          <div className="bg-[#1d6faa] px-4 py-3 text-center">
+            <p className="text-white font-bold text-base tracking-wide">Result</p>
           </div>
-          <div className="p-4 space-y-2 text-sm">
+          <div className="px-5 py-4 space-y-2.5 text-sm">
             {[
-              { label:'Centre',       val: result.centre },
-              { label:'Dropped to',   val: result.shop },
-              { label:'Milk (L)',      val: result.liters },
-              { label:'Fat %',        val: result.fat },
-              { label:'LR',           val: result.lr },
-              result.snf    ? { label:'SNF',          val: result.snf }       : null,
-              result.ts     ? { label:'TS',            val: result.ts }        : null,
-              result.sp_gravity ? { label:'Sp. Gravity', val: result.sp_gravity } : null,
-              result.amount ? { label:'Amount (Rs)',   val: `Rs ${Number(result.amount).toLocaleString('en-PK',{maximumFractionDigits:0})}` } : null,
+              { label:'Centre',           val: result.centre },
+              { label:'Dropped to Shop',  val: result.shop },
+              { label:'SNF',              val: result.snf },
+              { label:'TS',               val: result.ts },
+              { label:'TS Milk Quantity', val: result.ts_milk_qty },
+              { label:'Milk (in KGs)',     val: result.milk_kg },
+              { label:'Sp. Gravity',      val: result.sp_gravity },
+              result.amount != null
+                ? { label:'Amount', val: `Rs ${Number(result.amount).toLocaleString('en-PK',{maximumFractionDigits:2})}` }
+                : null,
             ].filter(Boolean).map(({ label, val }) => (
               <div key={label} className="flex justify-between items-center border-b border-slate-50 pb-2 last:border-0 last:pb-0">
-                <span className="text-slate-500 font-medium">{label}</span>
+                <span className="text-slate-500 font-medium">{label}:</span>
                 <span className="font-mono font-semibold text-slate-800">{val}</span>
               </div>
             ))}
           </div>
-          <div className="px-4 pb-4">
+          <div className="px-5 pb-5 pt-1">
             <button onClick={() => setResult(null)}
-              className="w-full py-2.5 rounded-xl bg-[#1d6faa] text-white font-semibold text-sm hover:bg-[#1557a0] transition">
+              className="w-full py-3 rounded-xl bg-[#1d6faa] text-white font-bold text-sm hover:bg-[#1557a0] transition">
               Close
             </button>
           </div>

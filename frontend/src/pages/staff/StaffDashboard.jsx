@@ -142,10 +142,10 @@ export default function StaffDashboard() {
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3">
-          <KPITile icon={Milk}        label="Total Collected" value={fmtL(kpi.total_liters)} sub={`${kpi.entries||0} entries`}    color={{ bg:'bg-blue-50',    icon:'text-[#1d6faa]',    val:'text-slate-800' }}/>
-          <KPITile icon={Droplets}    label="Avg FAT%"        value={fmtPct(kpi.avg_fat)}    sub="this period"                     color={{ bg:'bg-amber-50',   icon:'text-amber-600',   val:'text-amber-700' }}/>
-          <KPITile icon={FlaskConical} label="Avg TS"          value={Number(kpi.avg_ts||0).toFixed(3)} sub="total solids"         color={{ bg:'bg-violet-50',  icon:'text-violet-600',  val:'text-violet-700' }}/>
-          <KPITile icon={FlaskConical} label="Avg SNF"          value={fmtPct(kpi.avg_snf)}   sub="derived"                       color={{ bg:'bg-emerald-50', icon:'text-emerald-600', val:'text-emerald-700' }}/>
+          <KPITile icon={Milk}         label="Total Collected" value={fmtL(kpi.total_liters)}                   sub={`${kpi.entries||0} entries`} color={{ bg:'bg-blue-50',    icon:'text-[#1d6faa]',    val:'text-slate-800' }}/>
+          <KPITile icon={Droplets}     label="Avg FAT%"        value={fmtPct(kpi.avg_fat)}                      sub="this period"                 color={{ bg:'bg-amber-50',   icon:'text-amber-600',   val:'text-amber-700' }}/>
+          <KPITile icon={FlaskConical} label="Avg TS"          value={Number(kpi.avg_ts||0).toFixed(3)}         sub="total solids"                color={{ bg:'bg-violet-50',  icon:'text-violet-600',  val:'text-violet-700' }}/>
+          <KPITile icon={FlaskConical} label="Avg SNF"         value={Number(kpi.avg_snf||0).toFixed(3)+'%'}    sub="derived"                     color={{ bg:'bg-emerald-50', icon:'text-emerald-600', val:'text-emerald-700' }}/>
         </div>
       )}
 
