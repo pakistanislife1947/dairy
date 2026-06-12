@@ -2,6 +2,29 @@ const express = require('express');
 const db      = require('../config/db');
 const { authenticate, adminOnly } = require('../middleware/auth');
 
+const pad = n => String(n).padStart(2, '0');
+const fmt = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+
+function getPeriod(tenure, date_from, date_to) {
+  const today = new Date();
+  if (tenure === 'custom' && date_from && date_to) return { start: date_from, end: date_to };
+  const end = fmt(today);
+  if (tenure === '7d')  { const s = new Date(today); s.setDate(s.getDate()-6);  return { start: fmt(s), end }; }
+  if (tenure === '30d') { const s = new Date(today); s.setDate(s.getDate()-29); return { start: fmt(s), end }; }
+  return { start: end, end };
+}
+
+// ── Check centre_name column exists ──────────────────────────────────────────
+let _hasCentre = null;
+async function hasCentreCol() {
+  if (_hasCentre !== null) return _hasCentre;
+  try {
+    const row = await db.queryOne(`SELECT COUNT(*) AS c FROM information_schema.columns WHERE table_name='farmers' AND column_name='centre_name'`);
+    _hasCentre = parseInt(row.c) > 0;
+  } catch { _hasCentre = false; }
+  return _hasCentre;
+}
+
 // ── Admin Dashboard ───────────────────────────────────────────────────────────
 const dashRouter = express.Router();
 dashRouter.use(authenticate, adminOnly);
@@ -9,33 +32,16 @@ dashRouter.use(authenticate, adminOnly);
 dashRouter.get('/', async (req, res, next) => {
   try {
     const { tenure = '1d', date_from, date_to } = req.query;
+    const { start: periodStart, end: periodEnd } = getPeriod(tenure, date_from, date_to);
+    const hasCentre = await hasCentreCol();
+    const centreExpr = hasCentre ? `COALESCE(f.centre_name, f.name)` : `f.name`;
 
-    let periodStart, periodEnd;
-    const today = new Date();
-    const pad   = n => String(n).padStart(2, '0');
-    const fmt   = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-
-    if (tenure === 'custom' && date_from && date_to) {
-      periodStart = date_from;
-      periodEnd   = date_to;
-    } else {
-      periodEnd = fmt(today);
-      if (tenure === '7d') {
-        const s = new Date(today); s.setDate(s.getDate() - 6); periodStart = fmt(s);
-      } else if (tenure === '30d') {
-        const s = new Date(today); s.setDate(s.getDate() - 29); periodStart = fmt(s);
-      } else {
-        periodStart = fmt(today);
-      }
-    }
-
-    // ── Core KPIs ────────────────────────────────────────────────────
+    // Core KPIs
     const milkStats = await db.queryOne(
       `SELECT
          COALESCE(SUM(quantity_liters),0)  AS total_liters,
          COALESCE(SUM(total_amount),0)     AS purchase_cost,
          COALESCE(AVG(fat_percentage),0)   AS avg_fat,
-         COALESCE(AVG(snf_percentage),0)   AS avg_snf,
          COUNT(DISTINCT farmer_id)         AS active_farmers,
          COUNT(*)                          AS record_count
        FROM milk_records
@@ -51,97 +57,67 @@ dashRouter.get('/', async (req, res, next) => {
        FROM milk_sales
        WHERE sale_date BETWEEN $1 AND $2`,
       [periodStart, periodEnd]
-    );
+    ).catch(() => ({ total_revenue: 0, received: 0, sold_liters: 0 }));
 
     const expenseStats = await db.queryOne(
-      `SELECT COALESCE(SUM(amount),0) AS total_expenses
-       FROM expenses
-       WHERE expense_date BETWEEN $1 AND $2`,
+      `SELECT COALESCE(SUM(amount),0) AS total_expenses FROM expenses WHERE expense_date BETWEEN $1 AND $2`,
       [periodStart, periodEnd]
-    );
+    ).catch(() => ({ total_expenses: 0 }));
 
-    // ── Stock Left ───────────────────────────────────────────────────
-    const stockOverall = await db.queryOne(
+    // Stock (overall)
+    const stockRow = await db.queryOne(
       `SELECT
          COALESCE((SELECT SUM(quantity_liters) FROM milk_records WHERE collection_date <= $1),0)
-         - COALESCE((SELECT SUM(quantity_liters) FROM milk_sales   WHERE sale_date      <= $1),0)
+         - COALESCE((SELECT SUM(quantity_liters) FROM milk_sales WHERE sale_date <= $1),0)
          AS stock_liters`,
       [periodEnd]
-    );
+    ).catch(() => ({ stock_liters: 0 }));
 
-    // ── Stock Per Shop ───────────────────────────────────────────────
-    const [shopStock] = await db.query(
-      `SELECT s.id, s.shop_name,
-         COALESCE(ws.sold, 0) AS sold_liters
-       FROM shops s
-       LEFT JOIN (
-         SELECT shop_id, SUM(quantity_liters) AS sold
-         FROM walkin_sales
-         WHERE sale_date <= $1
-         GROUP BY shop_id
-       ) ws ON ws.shop_id = s.id
-       WHERE s.is_active = TRUE
-       ORDER BY s.shop_name`,
-      [periodEnd]
-    );
-
-    // ── Purchase Breakdown ───────────────────────────────────────────
+    // Purchase breakdown per supplier
     const [purchaseBreakdown] = await db.query(
       `SELECT f.name AS farmer_name,
-              COALESCE(f.centre_name, f.name) AS centre_name,
+              ${centreExpr} AS centre_name,
               f.farmer_code,
-              COALESCE(f.village, f.address, '—') AS location,
+              COALESCE(f.address, '—') AS location,
               SUM(mr.quantity_liters)  AS liters,
-              SUM(mr.total_amount)     AS amount,
+              COALESCE(SUM(mr.total_amount),0) AS amount,
               AVG(mr.fat_percentage)   AS avg_fat,
-              COUNT(*)                 AS records,
-              MODE() WITHIN GROUP (ORDER BY s.shop_name) AS shop_name
+              COUNT(*)                 AS records
        FROM milk_records mr
        JOIN farmers f ON f.id = mr.farmer_id
-       LEFT JOIN shops s ON s.id = mr.shop_id
        WHERE mr.collection_date BETWEEN $1 AND $2
-       GROUP BY mr.farmer_id, f.name, f.centre_name, f.farmer_code, f.village, f.address
+       GROUP BY mr.farmer_id, f.name, ${hasCentre ? 'f.centre_name,' : ''} f.farmer_code, f.address
        ORDER BY liters DESC`,
       [periodStart, periodEnd]
-    );
+    ).catch(() => [[]]);
 
-    // ── 6-month Trends ───────────────────────────────────────────────
+    // Top farmers
+    const [topFarmers] = await db.query(
+      `SELECT f.name, ${centreExpr} AS centre_name, f.farmer_code,
+              SUM(mr.quantity_liters) AS liters,
+              COALESCE(SUM(mr.total_amount),0) AS amount
+       FROM milk_records mr JOIN farmers f ON f.id = mr.farmer_id
+       WHERE mr.collection_date BETWEEN $1 AND $2
+       GROUP BY mr.farmer_id, f.name, ${hasCentre ? 'f.centre_name,' : ''} f.farmer_code
+       ORDER BY liters DESC LIMIT 5`,
+      [periodStart, periodEnd]
+    ).catch(() => [[]]);
+
+    // Monthly trend (last 6 months)
     const [milkTrend] = await db.query(
       `SELECT TO_CHAR(collection_date,'YYYY-MM') AS month,
               SUM(quantity_liters) AS liters,
-              SUM(total_amount)    AS cost
+              COALESCE(SUM(total_amount),0) AS cost
        FROM milk_records
-       WHERE collection_date >= ($1::date - INTERVAL '5 months')
+       WHERE collection_date >= (CURRENT_DATE - INTERVAL '5 months')
        GROUP BY TO_CHAR(collection_date,'YYYY-MM')
        ORDER BY month`,
-      [periodStart]
-    );
+      []
+    ).catch(() => [[]]);
 
-    const [salesTrend] = await db.query(
-      `SELECT TO_CHAR(sale_date,'YYYY-MM') AS month,
-              SUM(quantity_liters) AS liters,
-              SUM(total_amount)    AS revenue
-       FROM milk_sales
-       WHERE sale_date >= ($1::date - INTERVAL '5 months')
-       GROUP BY TO_CHAR(sale_date,'YYYY-MM')
-       ORDER BY month`,
-      [periodStart]
-    );
-
-    const [topFarmers] = await db.query(
-      `SELECT f.name, COALESCE(f.centre_name, f.name) AS centre_name, f.farmer_code,
-              SUM(mr.quantity_liters) AS liters,
-              SUM(mr.total_amount)    AS amount
-       FROM milk_records mr JOIN farmers f ON f.id = mr.farmer_id
-       WHERE mr.collection_date BETWEEN $1 AND $2
-       GROUP BY mr.farmer_id, f.name, f.centre_name, f.farmer_code
-       ORDER BY liters DESC LIMIT 5`,
-      [periodStart, periodEnd]
-    );
-
-    const profit = parseFloat(salesStats.total_revenue)
-                 - parseFloat(milkStats.purchase_cost)
-                 - parseFloat(expenseStats.total_expenses);
+    const profit = parseFloat(salesStats.total_revenue || 0)
+                 - parseFloat(milkStats.purchase_cost || 0)
+                 - parseFloat(expenseStats.total_expenses || 0);
 
     res.json({
       success: true,
@@ -149,68 +125,46 @@ dashRouter.get('/', async (req, res, next) => {
         tenure,
         period: { from: periodStart, to: periodEnd },
         kpi: {
-          ...milkStats,
-          ...salesStats,
-          ...expenseStats,
-          stock_liters: parseFloat(stockOverall.stock_liters || 0).toFixed(1),
-          profit:  profit.toFixed(2),
-          margin:  salesStats.total_revenue > 0
-                     ? ((profit / salesStats.total_revenue) * 100).toFixed(1)
-                     : '0.0',
+          total_liters:     parseFloat(milkStats.total_liters || 0),
+          purchase_cost:    parseFloat(milkStats.purchase_cost || 0),
+          avg_fat:          parseFloat(milkStats.avg_fat || 0),
+          active_farmers:   parseInt(milkStats.active_farmers || 0),
+          record_count:     parseInt(milkStats.record_count || 0),
+          total_revenue:    parseFloat(salesStats.total_revenue || 0),
+          sold_liters:      parseFloat(salesStats.sold_liters || 0),
+          total_expenses:   parseFloat(expenseStats.total_expenses || 0),
+          stock_liters:     parseFloat(stockRow.stock_liters || 0).toFixed(1),
+          profit:           profit.toFixed(2),
+          margin: salesStats.total_revenue > 0
+            ? ((profit / salesStats.total_revenue) * 100).toFixed(1) : '0.0',
         },
-        shop_stock:         shopStock,
-        purchase_breakdown: purchaseBreakdown,
-        milk_trend:         milkTrend,
-        sales_trend:        salesTrend,
-        top_farmers:        topFarmers,
+        purchase_breakdown: purchaseBreakdown || [],
+        top_farmers:        topFarmers || [],
+        milk_trend:         milkTrend || [],
       },
     });
-  } catch (err) { next(err); }
+  } catch (err) {
+    console.error('Admin dashboard error:', err.message);
+    next(err);
+  }
 });
 
-// ── Staff / Purchase Dashboard ────────────────────────────────────────────────
+// ── Staff Dashboard ───────────────────────────────────────────────────────────
 const staffDashRouter = express.Router();
 staffDashRouter.use(authenticate);
 
 staffDashRouter.get('/', async (req, res, next) => {
   try {
     const { tenure = '1d', date_from, date_to } = req.query;
-    const userId = req.user.id;
+    const { start: periodStart, end: periodEnd } = getPeriod(tenure, date_from, date_to);
+    const userId    = req.user.id;
+    const hasCentre = await hasCentreCol();
+    const centreExpr = hasCentre ? `COALESCE(f.centre_name, f.name)` : `f.name`;
 
-    const today = new Date();
-    const pad   = n => String(n).padStart(2, '0');
-    const fmt   = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-
-    let periodStart, periodEnd;
-    if (tenure === 'custom' && date_from && date_to) {
-      periodStart = date_from; periodEnd = date_to;
-    } else {
-      periodEnd = fmt(today);
-      if (tenure === '7d') {
-        const s = new Date(today); s.setDate(s.getDate()-6); periodStart = fmt(s);
-      } else if (tenure === '30d') {
-        const s = new Date(today); s.setDate(s.getDate()-29); periodStart = fmt(s);
-      } else {
-        periodStart = fmt(today);
-      }
-    }
-
-    // KPI — scoped to this staff user
     const kpi = await db.queryOne(
       `SELECT
          COALESCE(SUM(quantity_liters),0) AS total_liters,
          COALESCE(AVG(fat_percentage),0)  AS avg_fat,
-         COALESCE(AVG(
-           CASE WHEN lactometer_reading IS NOT NULL AND lactometer_reading > 0
-                THEN (lactometer_reading / 4.0) + 0.2
-                ELSE NULL END
-         ),0) AS avg_snf,
-         COALESCE(AVG(
-           CASE WHEN ts_value IS NOT NULL AND ts_value > 0 THEN ts_value
-                WHEN lactometer_reading IS NOT NULL AND fat_percentage IS NOT NULL
-                THEN (0.22 * fat_percentage) + 0.72 + (lactometer_reading / 4.0) + fat_percentage
-                ELSE NULL END
-         ),0) AS avg_ts,
          COUNT(*) AS entries
        FROM milk_records
        WHERE recorded_by = $1 AND collection_date BETWEEN $2 AND $3`,
@@ -219,36 +173,41 @@ staffDashRouter.get('/', async (req, res, next) => {
 
     const [details] = await db.query(
       `SELECT mr.id, mr.collection_date,
-              mr.collection_time,
               mr.quantity_liters, mr.fat_percentage,
               mr.lactometer_reading,
-              CASE WHEN mr.ts_value IS NOT NULL AND mr.ts_value > 0 THEN mr.ts_value
-                   WHEN mr.lactometer_reading IS NOT NULL AND mr.fat_percentage IS NOT NULL
-                   THEN ROUND(((0.22 * mr.fat_percentage) + 0.72 + (mr.lactometer_reading / 4.0) + mr.fat_percentage)::numeric, 4)
-                   ELSE 0 END AS ts_value,
-              CASE WHEN mr.lactometer_reading IS NOT NULL
-                   THEN ROUND(((mr.lactometer_reading / 4.0) + 0.2)::numeric, 3)
-                   ELSE 0 END AS snf_computed,
-              CASE WHEN mr.lactometer_reading IS NOT NULL
-                   THEN ROUND((1 + mr.lactometer_reading / 1000.0)::numeric, 3)
-                   ELSE 1 END AS sp_gravity,
+              mr.ts_value,
+              mr.snf_computed,
+              mr.sp_gravity,
+              mr.collection_time,
+              ${centreExpr} AS centre_name,
               f.name AS farmer_name,
-              COALESCE(f.centre_name, f.name) AS centre_name,
               f.farmer_code,
               s.shop_name
        FROM milk_records mr
        JOIN farmers f ON f.id = mr.farmer_id
        LEFT JOIN shops s ON s.id = mr.shop_id
        WHERE mr.recorded_by = $1 AND mr.collection_date BETWEEN $2 AND $3
-       ORDER BY mr.collection_date DESC, mr.collection_time DESC NULLS LAST`,
+       ORDER BY mr.collection_date DESC, mr.created_at DESC NULLS LAST`,
       [userId, periodStart, periodEnd]
-    );
+    ).catch(() => [[]]);
 
     res.json({
       success: true,
-      data: { tenure, period: { from: periodStart, to: periodEnd }, kpi, details },
+      data: {
+        tenure,
+        period: { from: periodStart, to: periodEnd },
+        kpi: {
+          total_liters: parseFloat(kpi?.total_liters || 0),
+          avg_fat:      parseFloat(kpi?.avg_fat || 0),
+          entries:      parseInt(kpi?.entries || 0),
+        },
+        details: details || [],
+      },
     });
-  } catch (err) { next(err); }
+  } catch (err) {
+    console.error('Staff dashboard error:', err.message);
+    next(err);
+  }
 });
 
 module.exports = { dashRouter, staffDashRouter };

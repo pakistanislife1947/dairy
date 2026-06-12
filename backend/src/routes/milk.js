@@ -25,7 +25,9 @@ async function isMigrated() {
 }
 
 const rules = [
-  body('farmer_id').notEmpty().withMessage('farmer_id required').toInt(),
+  body('farmer_id')
+    .notEmpty().withMessage('farmer_id required')
+    .isInt({ min: 1 }).withMessage('Invalid farmer_id'),
   body('collection_date').notEmpty().withMessage('collection_date required'),
   body('quantity_liters').isFloat({ min: 0.001 }).withMessage('Quantity must be > 0'),
   body('fat_percentage').isFloat({ min: 0, max: 100 }).withMessage('FAT% must be 0–100'),
@@ -33,7 +35,6 @@ const rules = [
   body('snf_percentage').optional({ nullable: true }).isFloat({ min: 0, max: 100 }),
   body('target_ts').optional({ nullable: true }).isFloat({ min: 1, max: 30 }),
   body('shop_id').optional({ nullable: true }).isInt({ min: 1 }),
-  body('shift').optional({ nullable: true }).isString(),
   body('notes').optional({ nullable: true }).isString().isLength({ max: 500 }),
 ];
 

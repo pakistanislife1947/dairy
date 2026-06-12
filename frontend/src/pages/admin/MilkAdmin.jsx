@@ -88,19 +88,26 @@ function MilkModal({ isOpen, onClose, farmers, shops, onSaved }) {
     setSaving(true);
     try {
       await api.post('/milk', {
-        farmer_id:          parseInt(form.farmer_id),
+        farmer_id:          parseInt(form.farmer_id, 10),
         collection_date:    form.collection_date,
         quantity_liters:    parseFloat(form.quantity_liters),
         fat_percentage:     parseFloat(form.fat_percentage),
-        lactometer_reading: parseFloat(form.lactometer_reading),
+        lactometer_reading: form.lactometer_reading ? parseFloat(form.lactometer_reading) : undefined,
         target_ts:          parseFloat(form.target_ts) || 13,
-        shop_id:            form.shop_id ? parseInt(form.shop_id) : null,
-        notes:              form.notes || null,
+        shop_id:            form.shop_id ? parseInt(form.shop_id, 10) : undefined,
+        notes:              form.notes || undefined,
       });
       toast.success('Record saved');
       onSaved();
       onClose();
-    } catch (err) { toast.error(err.response?.data?.message || 'Save failed'); }
+    } catch (err) {
+      const errs = err.response?.data?.errors;
+      if (errs?.length) {
+        toast.error(errs.map(e => `${e.field}: ${e.message}`).join(' | '));
+      } else {
+        toast.error(err.response?.data?.message || 'Save failed');
+      }
+    }
     finally { setSaving(false); }
   };
 
