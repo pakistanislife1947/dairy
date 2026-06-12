@@ -187,17 +187,24 @@ export default function MilkEntry() {
           <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
             Collection Centre <span className="text-red-400">*</span>
           </label>
-          <div className="relative">
-            <select value={form.farmer_id} onChange={set('farmer_id')}
-              className={`${inputBase} py-3.5 text-sm appearance-none pr-10 bg-white
-                ${errors.farmer_id ? 'border-red-400' : 'border-slate-200'}`}>
-              <option value="">Select centre…</option>
-              {centres.map(c => (
-                <option key={c.id} value={c.id}>{c.centre_name || c.name} ({c.farmer_code})</option>
-              ))}
-            </select>
-            <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
-          </div>
+          {centres.length === 0 ? (
+            <div className="w-full border border-amber-300 bg-amber-50 rounded-xl px-4 py-3">
+              <p className="text-amber-800 font-bold text-sm">⚠️ No collection centres found</p>
+              <p className="text-amber-600 text-xs mt-0.5">Ask admin to add suppliers/farmers first.</p>
+            </div>
+          ) : (
+            <div className="relative">
+              <select value={form.farmer_id} onChange={set('farmer_id')}
+                className={`${inputBase} py-3.5 text-sm appearance-none pr-10 bg-white
+                  ${errors.farmer_id ? 'border-red-400' : 'border-slate-200'}`}>
+                <option value="">Select centre…</option>
+                {centres.map(c => (
+                  <option key={c.id} value={c.id}>{c.centre_name || c.name} ({c.farmer_code})</option>
+                ))}
+              </select>
+              <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
+            </div>
+          )}
           {errors.farmer_id && (
             <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
               <AlertCircle size={11}/>{errors.farmer_id}

@@ -133,15 +133,27 @@ function MilkModal({ isOpen, onClose, farmers, shops, onSaved }) {
 
           {/* Supplier */}
           <Field label="Supplier" required error={errors.farmer_id}>
-            <select value={form.farmer_id} onChange={set('farmer_id')}
-              className={`${inputBase} ${errors.farmer_id ? inputErr : inputOk} appearance-none`}>
-              <option value="">Select supplier…</option>
-              {farmers.map(f => (
-                <option key={f.id} value={f.id}>
-                  {f.centre_name || f.name} ({f.farmer_code})
-                </option>
-              ))}
-            </select>
+            {farmers.length === 0 ? (
+              <div className="w-full border border-amber-300 bg-amber-50 rounded-xl px-4 py-3 flex items-center gap-3">
+                <span className="text-xl">⚠️</span>
+                <div>
+                  <p className="text-amber-800 font-bold text-sm">No suppliers found</p>
+                  <a href="/admin/farmers" className="text-amber-600 text-xs underline">
+                    Go to Farmers → Add a supplier first
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <select value={form.farmer_id} onChange={set('farmer_id')}
+                className={`${inputBase} ${errors.farmer_id ? inputErr : inputOk} appearance-none`}>
+                <option value="">Select supplier…</option>
+                {farmers.map(f => (
+                  <option key={f.id} value={f.id}>
+                    {f.centre_name || f.name} ({f.farmer_code})
+                  </option>
+                ))}
+              </select>
+            )}
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
