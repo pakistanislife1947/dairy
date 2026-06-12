@@ -1,27 +1,43 @@
 -- ============================================================
--- CLEAR ALL NON-ADMIN DATA
--- Run this in Supabase SQL Editor
--- Admin users (role = 'admin') are preserved.
+-- SAFE DATA CLEAR — skips tables that don't exist
+-- Run in Supabase SQL Editor after migration_v2.sql
+-- Admin accounts (role = 'admin') are preserved.
 -- ============================================================
 
--- 1. Milk records (all purchase data)
+-- Milk purchase records
 TRUNCATE TABLE milk_records RESTART IDENTITY CASCADE;
 
--- 2. Sales data
-TRUNCATE TABLE milk_sales    RESTART IDENTITY CASCADE;
-TRUNCATE TABLE walkin_sales  RESTART IDENTITY CASCADE;
+-- Sales data (only if tables exist)
+DO $$ BEGIN
+  IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'milk_sales') THEN
+    EXECUTE 'TRUNCATE TABLE milk_sales RESTART IDENTITY CASCADE';
+  END IF;
+END $$;
 
--- 3. Expenses
-TRUNCATE TABLE expenses      RESTART IDENTITY CASCADE;
+DO $$ BEGIN
+  IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'walkin_sales') THEN
+    EXECUTE 'TRUNCATE TABLE walkin_sales RESTART IDENTITY CASCADE';
+  END IF;
+END $$;
 
--- 4. Audit logs
-TRUNCATE TABLE audit_logs    RESTART IDENTITY CASCADE;
+-- Expenses
+DO $$ BEGIN
+  IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'expenses') THEN
+    EXECUTE 'TRUNCATE TABLE expenses RESTART IDENTITY CASCADE';
+  END IF;
+END $$;
 
--- 5. Non-admin users only (keeps admin accounts safe)
+-- Audit logs
+DO $$ BEGIN
+  IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'audit_logs') THEN
+    EXECUTE 'TRUNCATE TABLE audit_logs RESTART IDENTITY CASCADE';
+  END IF;
+END $$;
+
+-- Non-admin users only
 DELETE FROM users WHERE role != 'admin';
 
--- 6. Farmers / collection centres
-TRUNCATE TABLE farmers       RESTART IDENTITY CASCADE;
+-- Farmers / collection centres
+TRUNCATE TABLE farmers RESTART IDENTITY CASCADE;
 
--- Done. Admin accounts preserved.
-SELECT 'Data cleared. Admin accounts preserved.' AS result;
+SELECT 'Done. Admin accounts preserved.' AS result;
