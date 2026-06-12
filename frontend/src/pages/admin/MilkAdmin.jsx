@@ -1,251 +1,454 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Milk, Plus, Filter, TrendingUp, Clock, Calculator, RefreshCw } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Milk, Plus, Search, Calculator, RefreshCw, Clock, Trash2, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../api/client';
-import { PageHeader, Modal, SkeletonRow, EmptyState, StatCard } from '../../components/ui';
 
-const fmt  = n => `Rs ${Number(n||0).toLocaleString('en-PK',{maximumFractionDigits:0})}`;
-const fmtL = n => `${Number(n||0).toFixed(1)}L`;
+const fmt   = n => `Rs ${Number(n||0).toLocaleString('en-PK',{maximumFractionDigits:0})}`;
+const fmtL  = n => `${Number(n||0).toFixed(1)}L`;
 const today = () => new Date().toISOString().slice(0,10);
-
-const emptyForm = {
-  farmer_id:'', collection_date: today(), shift:'morning',
-  quantity_liters:'', fat_percentage:'', lactometer_reading:'',
-  snf_percentage:'', notes:'',
+const fmtTime = ts => {
+  if (!ts) return '—';
+  try { return new Date(ts).toLocaleTimeString('en-PK',{hour:'2-digit',minute:'2-digit',hour12:true}); }
+  catch { return '—'; }
+};
+const fmtDateTime = ts => {
+  if (!ts) return '—';
+  try {
+    const d = new Date(ts);
+    return d.toLocaleString('en-PK',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:true});
+  } catch { return '—'; }
 };
 
-export default function MilkAdmin() {
-  const [records, setRecords] = useState([]);
-  const [farmers, setFarmers] = useState([]);
-  const [kpi,     setKpi]     = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [modal,   setModal]   = useState(false);
-  const [saving,  setSaving]  = useState(false);
+const emptyForm = () => ({
+  farmer_id: '', collection_date: today(),
+  quantity_liters: '', fat_percentage: '',
+  lactometer_reading: '', target_ts: '13',
+  shop_id: '', notes: '',
+});
+
+// ── Beautiful Input ──────────────────────────────────────────────────────────
+function Field({ label, required, error, children }) {
+  return (
+    <div>
+      <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+        {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+      </label>
+      {children}
+      {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+    </div>
+  );
+}
+
+// ── Add/Edit Modal ───────────────────────────────────────────────────────────
+function MilkModal({ isOpen, onClose, farmers, shops, onSaved }) {
+  const [form, setForm]       = useState(emptyForm());
   const [preview, setPreview] = useState(null);
-  const [prevLoading, setPrevLoading] = useState(false);
-  const [filters, setFilters] = useState({ farmer_id:'', shift:'', date_from:'', date_to:'' });
-  const [form,    setForm]    = useState(emptyForm);
+  const [prevLoad, setPrevLoad] = useState(false);
+  const [saving, setSaving]   = useState(false);
+  const [errors, setErrors]   = useState({});
+  const debounce = useRef(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const q = new URLSearchParams(Object.fromEntries(Object.entries(filters).filter(([,v])=>v)));
-      const [recs, kpiRes] = await Promise.all([
-        api.get(`/milk?${q}&limit=100`),
-        api.get('/milk/kpi').catch(() => ({ data:{ data:null } })),
-      ]);
-      setRecords(recs.data.data || []);
-      setKpi(kpiRes.data.data);
-    } catch { toast.error('Load failed'); }
-    finally { setLoading(false); }
-  }, [filters]);
+  useEffect(() => { if (isOpen) { setForm(emptyForm()); setPreview(null); setErrors({}); } }, [isOpen]);
 
-  useEffect(() => { api.get('/farmers?active=1&limit=200').then(r => setFarmers(r.data.data||[])); }, []);
-  useEffect(() => { load(); }, [load]);
+  const set = key => e => setForm(p => ({ ...p, [key]: e.target.value }));
 
-  // Live TS preview
+  // live preview
   useEffect(() => {
     const { fat_percentage: fat, lactometer_reading: lr, quantity_liters: qty } = form;
     if (!fat || !lr || !qty || parseFloat(qty) <= 0) { setPreview(null); return; }
-    const t = setTimeout(() => {
-      setPrevLoading(true);
+    clearTimeout(debounce.current);
+    debounce.current = setTimeout(() => {
+      setPrevLoad(true);
       api.post('/milk/preview-rate', {
         fat_percentage: parseFloat(fat),
         lactometer_reading: parseFloat(lr),
         quantity_liters: parseFloat(qty),
+        target_ts: parseFloat(form.target_ts) || 13,
       })
         .then(r => setPreview(r.data.data))
         .catch(() => setPreview(null))
-        .finally(() => setPrevLoading(false));
+        .finally(() => setPrevLoad(false));
     }, 500);
-    return () => clearTimeout(t);
-  }, [form.fat_percentage, form.lactometer_reading, form.quantity_liters]);
+    return () => clearTimeout(debounce.current);
+  }, [form.fat_percentage, form.lactometer_reading, form.quantity_liters, form.target_ts]);
+
+  const validate = () => {
+    const e = {};
+    if (!form.farmer_id)       e.farmer_id       = 'Select supplier';
+    if (!form.quantity_liters || parseFloat(form.quantity_liters) <= 0) e.quantity_liters = 'Enter quantity';
+    if (!form.fat_percentage)  e.fat_percentage  = 'Enter FAT%';
+    if (!form.lactometer_reading) e.lactometer_reading = 'Enter LR';
+    setErrors(e);
+    return !Object.keys(e).length;
+  };
 
   const onSubmit = async e => {
     e.preventDefault();
-    const { farmer_id, quantity_liters, fat_percentage, lactometer_reading } = form;
-    if (!farmer_id || !quantity_liters || !fat_percentage || !lactometer_reading)
-      return toast.error('Farmer, Qty, FAT% and LR are required');
+    if (!validate()) return;
     setSaving(true);
     try {
-      await api.post('/milk', form);
+      await api.post('/milk', {
+        farmer_id:          parseInt(form.farmer_id),
+        collection_date:    form.collection_date,
+        quantity_liters:    parseFloat(form.quantity_liters),
+        fat_percentage:     parseFloat(form.fat_percentage),
+        lactometer_reading: parseFloat(form.lactometer_reading),
+        target_ts:          parseFloat(form.target_ts) || 13,
+        shop_id:            form.shop_id ? parseInt(form.shop_id) : null,
+        notes:              form.notes || null,
+      });
       toast.success('Record saved');
-      setModal(false);
-      setForm(emptyForm);
-      setPreview(null);
-      load();
-    } catch (err) { toast.error(err.response?.data?.message || 'Failed'); }
+      onSaved();
+      onClose();
+    } catch (err) { toast.error(err.response?.data?.message || 'Save failed'); }
     finally { setSaving(false); }
   };
 
-  const f = v => e => setForm(p => ({ ...p, [v]: e.target.value }));
+  if (!isOpen) return null;
+
+  const inputBase = 'w-full border rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-[#1d6faa] bg-white transition';
+  const inputErr  = 'border-red-400';
+  const inputOk   = 'border-slate-200';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-[#0d2137] to-[#1d6faa] px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center">
+              <Milk size={18} className="text-white"/>
+            </div>
+            <div>
+              <p className="text-white font-bold text-base">Add Milk Collection</p>
+              <p className="text-blue-200 text-xs">All values auto-calculated</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition">
+            <X size={16}/>
+          </button>
+        </div>
+
+        <form onSubmit={onSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+
+          {/* Supplier */}
+          <Field label="Supplier" required error={errors.farmer_id}>
+            <select value={form.farmer_id} onChange={set('farmer_id')}
+              className={`${inputBase} ${errors.farmer_id ? inputErr : inputOk} appearance-none`}>
+              <option value="">Select supplier…</option>
+              {farmers.map(f => (
+                <option key={f.id} value={f.id}>
+                  {f.centre_name || f.name} ({f.farmer_code})
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            {/* Date */}
+            <Field label="Date" required>
+              <input type="date" value={form.collection_date} onChange={set('collection_date')}
+                className={`${inputBase} ${inputOk}`}/>
+            </Field>
+
+            {/* Deliver to Shop */}
+            <Field label="Deliver to Shop">
+              <select value={form.shop_id} onChange={set('shop_id')}
+                className={`${inputBase} ${inputOk} appearance-none`}>
+                <option value="">Select shop…</option>
+                {shops.map(s => <option key={s.id} value={s.id}>{s.shop_name}</option>)}
+              </select>
+            </Field>
+          </div>
+
+          {/* Qty */}
+          <Field label="Milk Quantity (L/KG)" required error={errors.quantity_liters}>
+            <input type="number" step="0.01" placeholder="0.00"
+              value={form.quantity_liters} onChange={set('quantity_liters')}
+              className={`${inputBase} ${errors.quantity_liters ? inputErr : inputOk} text-center text-xl font-bold font-mono`}/>
+          </Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            {/* FAT */}
+            <Field label="FAT %" required error={errors.fat_percentage}>
+              <input type="number" step="0.01" placeholder="0.00"
+                value={form.fat_percentage} onChange={set('fat_percentage')}
+                className={`${inputBase} ${errors.fat_percentage ? inputErr : inputOk} text-center font-mono text-blue-600 font-bold`}/>
+            </Field>
+
+            {/* LR */}
+            <Field label="LR (Lactometer)" required error={errors.lactometer_reading}>
+              <input type="number" step="0.1" placeholder="0.0"
+                value={form.lactometer_reading} onChange={set('lactometer_reading')}
+                className={`${inputBase} ${errors.lactometer_reading ? inputErr : inputOk} text-center font-mono text-violet-600 font-bold`}/>
+            </Field>
+          </div>
+
+          {/* TS Standard */}
+          <Field label="TS Standard (default: 13)">
+            <input type="number" step="0.01" placeholder="13"
+              value={form.target_ts} onChange={set('target_ts')}
+              className={`${inputBase} ${inputOk} text-center font-mono`}/>
+          </Field>
+
+          {/* Notes */}
+          <Field label="Notes">
+            <input value={form.notes} onChange={set('notes')} placeholder="Any remarks…"
+              className={`${inputBase} ${inputOk}`}/>
+          </Field>
+
+          {/* Live Calculation Output */}
+          {(prevLoad || preview) && (
+            <div className="rounded-2xl border border-[#1d6faa]/20 bg-gradient-to-br from-blue-50 to-violet-50 overflow-hidden">
+              <div className="px-4 py-2.5 bg-[#1d6faa]/10 border-b border-[#1d6faa]/15 flex items-center gap-2">
+                <Calculator size={14} className="text-[#1d6faa]"/>
+                <p className="text-sm font-bold text-[#1d6faa]">Live Calculation</p>
+                {prevLoad && <RefreshCw size={12} className="animate-spin text-[#1d6faa] ml-auto"/>}
+              </div>
+              {preview && !prevLoad && (
+                <div className="p-4 grid grid-cols-3 gap-2">
+                  {[
+                    { l:'SNF',              v: preview.snf_computed,                     c:'text-emerald-700' },
+                    { l:'TS Value',         v: preview.ts,                               c:'text-blue-700' },
+                    { l:'Std. TS',          v: preview.standardised_ts,                  c:'text-violet-700' },
+                    { l:'TS Milk Qty',      v: (preview.ts && form.quantity_liters && form.target_ts
+                                               ? ((parseFloat(form.quantity_liters) * parseFloat(form.target_ts||13)) / preview.ts).toFixed(3)
+                                               : '—'),                                    c:'text-slate-700' },
+                    { l:'Milk (KGs)',       v: (form.quantity_liters && preview.sp_gravity
+                                               ? (parseFloat(form.quantity_liters) * preview.sp_gravity).toFixed(1)
+                                               : '—'),                                    c:'text-slate-700' },
+                    { l:'Sp. Gravity',      v: preview.sp_gravity,                        c:'text-slate-600' },
+                  ].map(({ l, v, c }) => (
+                    <div key={l} className="bg-white rounded-xl p-2.5 border border-slate-100 text-center shadow-sm">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">{l}</p>
+                      <p className={`font-mono font-bold text-sm ${c}`}>{v}</p>
+                    </div>
+                  ))}
+                  {/* Amount — admin only, full row */}
+                  {preview.rate_per_unit !== undefined && (
+                    <div className="col-span-3 bg-emerald-50 rounded-xl p-3 border border-emerald-100 flex items-center justify-between">
+                      <div>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Rate / L</p>
+                        <p className="font-mono font-bold text-sm text-slate-700">Rs {Number(preview.rate_per_unit).toFixed(4)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Amount Payable</p>
+                        <p className="font-mono font-bold text-lg text-emerald-700">{fmt(preview.total_payout)}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose}
+              className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition">
+              Cancel
+            </button>
+            <button type="submit" disabled={saving}
+              className="flex-1 py-3 rounded-xl bg-[#1d6faa] hover:bg-[#1557a0] text-white font-bold text-sm transition disabled:opacity-60 flex items-center justify-center gap-2">
+              {saving ? <RefreshCw size={15} className="animate-spin"/> : <Milk size={15}/>}
+              {saving ? 'Saving…' : 'Save Record'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Page ────────────────────────────────────────────────────────────────
+export default function MilkAdmin() {
+  const [records,  setRecords]  = useState([]);
+  const [farmers,  setFarmers]  = useState([]);
+  const [shops,    setShops]    = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [modal,    setModal]    = useState(false);
+  const [filters,  setFilters]  = useState({ farmer_id:'', date_from:'', date_to:'' });
+  const [deleting, setDeleting] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const q = new URLSearchParams();
+      if (filters.farmer_id) q.set('farmer_id', filters.farmer_id);
+      if (filters.date_from) q.set('date_from', filters.date_from);
+      if (filters.date_to)   q.set('date_to',   filters.date_to);
+      q.set('limit', '200');
+      const r = await api.get(`/milk?${q}`);
+      setRecords(r.data.data || []);
+    } catch { toast.error('Failed to load records'); }
+    finally { setLoading(false); }
+  }, [filters]);
+
+  useEffect(() => {
+    api.get('/farmers?active=1&limit=200').then(r => setFarmers(r.data.data||[]));
+    api.get('/shops?limit=100').then(r => setShops(r.data.data||[]));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const deleteRecord = async id => {
+    if (!window.confirm('Delete this record?')) return;
+    setDeleting(id);
+    try { await api.delete(`/milk/${id}`); toast.success('Deleted'); load(); }
+    catch { toast.error('Delete failed'); }
+    finally { setDeleting(null); }
+  };
+
+  // Summary stats from loaded records
+  const stats = records.reduce((acc, r) => {
+    acc.liters += parseFloat(r.quantity_liters)||0;
+    acc.amount += parseFloat(r.total_amount)||0;
+    acc.count++;
+    return acc;
+  }, { liters: 0, amount: 0, count: 0 });
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Milk Collection" subtitle="Daily records · TS-based pricing"
-        action={<button onClick={() => { setForm(emptyForm); setModal(true); }} className="btn-primary"><Plus size={16}/>Add Record</button>}/>
 
-      {/* KPI strip */}
-      {kpi && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Milk Collection</h1>
+          <p className="text-sm text-slate-400 mt-0.5">Daily records · TS-based pricing</p>
+        </div>
+        <button onClick={() => setModal(true)}
+          className="flex items-center gap-2 px-4 py-2.5 bg-[#1d6faa] hover:bg-[#1557a0] text-white rounded-xl font-semibold text-sm transition shadow-sm">
+          <Plus size={16}/> Add Record
+        </button>
+      </div>
+
+      {/* Summary cards */}
+      {!loading && records.length > 0 && (
+        <div className="grid grid-cols-3 gap-4">
           {[
-            { title:'Today',      value:fmtL(kpi.today_liters),  sub:fmt(kpi.today_amount),   icon:Milk,       color:'brand' },
-            { title:'This Month', value:fmtL(kpi.month_liters),  sub:fmt(kpi.month_amount),   icon:TrendingUp, color:'green' },
-            { title:'Avg FAT',    value:`${Number(kpi.avg_fat||0).toFixed(2)}%`, sub:'this month', icon:Filter, color:'amber' },
-            { title:'Farmers',    value:kpi.active_farmers||0,   sub:'active',                icon:Clock,      color:'blue'  },
-          ].map(s => <StatCard key={s.title} {...s}/>)}
+            { label:'Records', value: stats.count, sub:'filtered', color:'bg-blue-50 text-[#1d6faa]' },
+            { label:'Total Qty', value: fmtL(stats.liters), sub:'litres', color:'bg-violet-50 text-violet-600' },
+            { label:'Total Amount', value: fmt(stats.amount), sub:'payable', color:'bg-emerald-50 text-emerald-700' },
+          ].map(s => (
+            <div key={s.label} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+              <p className={`text-xs font-bold uppercase tracking-widest mb-2 ${s.color.split(' ')[1]}`}>{s.label}</p>
+              <p className="text-xl font-bold font-mono text-slate-800">{s.value}</p>
+              <p className="text-xs text-slate-400 mt-0.5">{s.sub}</p>
+            </div>
+          ))}
         </div>
       )}
 
       {/* Filters */}
-      <div className="card flex flex-wrap gap-3 items-end">
-        <div><label className="label">Farmer</label>
-          <select className="input" value={filters.farmer_id} onChange={e=>setFilters(p=>({...p,farmer_id:e.target.value}))}>
-            <option value="">All</option>{farmers.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
-          </select></div>
-        <div><label className="label">Shift</label>
-          <select className="input" value={filters.shift} onChange={e=>setFilters(p=>({...p,shift:e.target.value}))}>
-            <option value="">All</option><option value="morning">Morning</option><option value="evening">Evening</option>
-          </select></div>
-        <div><label className="label">From</label>
-          <input type="date" className="input" value={filters.date_from} onChange={e=>setFilters(p=>({...p,date_from:e.target.value}))}/></div>
-        <div><label className="label">To</label>
-          <input type="date" className="input" value={filters.date_to} onChange={e=>setFilters(p=>({...p,date_to:e.target.value}))}/></div>
-        <button onClick={load} className="btn-primary">Search</button>
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex flex-wrap gap-3 items-end">
+        <div>
+          <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Supplier</label>
+          <select value={filters.farmer_id} onChange={e => setFilters(p=>({...p,farmer_id:e.target.value}))}
+            className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#1d6faa] bg-white min-w-[160px]">
+            <option value="">All Suppliers</option>
+            {farmers.map(f => <option key={f.id} value={f.id}>{f.centre_name||f.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">From</label>
+          <input type="date" value={filters.date_from} onChange={e => setFilters(p=>({...p,date_from:e.target.value}))}
+            className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#1d6faa]"/>
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">To</label>
+          <input type="date" value={filters.date_to} onChange={e => setFilters(p=>({...p,date_to:e.target.value}))}
+            className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#1d6faa]"/>
+        </div>
+        <button onClick={load}
+          className="flex items-center gap-2 px-4 py-2 bg-[#1d6faa] text-white rounded-xl text-sm font-semibold hover:bg-[#1557a0] transition">
+          <Search size={14}/> Search
+        </button>
+        {(filters.farmer_id||filters.date_from||filters.date_to) && (
+          <button onClick={() => setFilters({farmer_id:'',date_from:'',date_to:''})}
+            className="px-4 py-2 border border-slate-200 text-slate-500 rounded-xl text-sm font-semibold hover:bg-slate-50 transition">
+            Clear
+          </button>
+        )}
       </div>
 
       {/* Table */}
-      <div className="card p-0 overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="table-auto w-full text-sm">
+          <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-50 text-xs text-slate-500 uppercase border-b border-slate-100">
-                <th className="px-4 py-3 text-left">Date</th>
-                <th className="px-4 py-3 text-left">Farmer</th>
-                <th className="px-4 py-3 text-left">Shift</th>
-                <th className="px-4 py-3 text-right">Qty</th>
-                <th className="px-4 py-3 text-right">FAT%</th>
-                <th className="px-4 py-3 text-right">LR</th>
-                <th className="px-4 py-3 text-right">TS</th>
-                <th className="px-4 py-3 text-right">Rate/L</th>
-                <th className="px-4 py-3 text-right">Amount</th>
+              <tr className="border-b border-slate-100 bg-slate-50/80">
+                {['Date & Time','Supplier','Qty','FAT%','LR','TS','Std TS','Shop','SNF','Rate/L','Amount'].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
+                ))}
+                <th className="px-4 py-3"/>
               </tr>
             </thead>
             <tbody>
-              {loading
-                ? [...Array(8)].map((_,i) => <SkeletonRow key={i} cols={9}/>)
-                : records.length === 0
-                  ? <tr><td colSpan={9}><EmptyState icon={Milk} title="No records" description="Add milk collection"/></td></tr>
-                  : records.map(r => (
-                    <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition">
-                      <td className="px-4 py-3 font-mono text-xs text-slate-500">{r.collection_date?.slice(0,10)}</td>
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-sm">{r.farmer_name}</p>
-                        <p className="text-xs text-slate-400">{r.farmer_code}</p>
+              {loading ? (
+                [...Array(6)].map((_,i) => (
+                  <tr key={i} className="border-b border-slate-50">
+                    {Array(12).fill(0).map((_,j) => (
+                      <td key={j} className="px-4 py-4">
+                        <div className="h-3 bg-slate-100 rounded-full animate-pulse"/>
                       </td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold ${r.shift==='morning'?'bg-amber-100 text-amber-700':'bg-blue-100 text-blue-700'}`}>
-                          {r.shift}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono font-semibold">{parseFloat(r.quantity_liters).toFixed(1)}L</td>
-                      <td className="px-4 py-3 text-right font-mono">{parseFloat(r.fat_percentage).toFixed(2)}%</td>
-                      <td className="px-4 py-3 text-right font-mono text-violet-600">{r.lactometer_reading ? parseFloat(r.lactometer_reading).toFixed(1) : '—'}</td>
-                      <td className="px-4 py-3 text-right font-mono text-blue-600">{r.ts_value ? parseFloat(r.ts_value).toFixed(3) : '—'}</td>
-                      <td className="px-4 py-3 text-right font-mono text-[#1d6faa]">{fmt(r.computed_rate)}</td>
-                      <td className="px-4 py-3 text-right font-mono font-bold text-emerald-600">{fmt(r.total_amount)}</td>
-                    </tr>
-                  ))
-              }
+                    ))}
+                  </tr>
+                ))
+              ) : records.length === 0 ? (
+                <tr><td colSpan={12}>
+                  <div className="flex flex-col items-center justify-center py-16">
+                    <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center mb-3">
+                      <Milk size={24} className="text-slate-300"/>
+                    </div>
+                    <p className="text-slate-400 font-medium">No records found</p>
+                    <p className="text-slate-300 text-xs mt-1">Add a milk collection to get started</p>
+                  </div>
+                </td></tr>
+              ) : records.map(r => (
+                <tr key={r.id} className="border-b border-slate-50 hover:bg-blue-50/30 transition group">
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <p className="font-mono text-xs font-semibold text-slate-700">{r.collection_date?.slice(0,10)}</p>
+                    <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                      <Clock size={9}/>{fmtTime(r.collection_time)}
+                    </p>
+                  </td>
+                  <td className="px-4 py-3">
+                    <p className="font-semibold text-slate-800 text-sm">{r.centre_name || r.farmer_name}</p>
+                    <p className="text-[10px] text-slate-400">{r.farmer_code}</p>
+                  </td>
+                  <td className="px-4 py-3 font-mono font-bold text-slate-800">{fmtL(r.quantity_liters)}</td>
+                  <td className="px-4 py-3 font-mono text-blue-600 font-semibold">{parseFloat(r.fat_percentage||0).toFixed(2)}%</td>
+                  <td className="px-4 py-3 font-mono text-violet-600">{r.lactometer_reading ? parseFloat(r.lactometer_reading).toFixed(1) : '—'}</td>
+                  <td className="px-4 py-3 font-mono text-blue-700">{r.ts_value ? parseFloat(r.ts_value).toFixed(3) : '—'}</td>
+                  <td className="px-4 py-3 font-mono text-violet-700">{r.standardised_ts ? parseFloat(r.standardised_ts).toFixed(3) : '—'}</td>
+                  <td className="px-4 py-3">
+                    {r.shop_name
+                      ? <span className="px-2 py-0.5 bg-amber-50 text-amber-700 rounded-lg text-xs font-medium">{r.shop_name}</span>
+                      : <span className="text-slate-300 text-xs">—</span>}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-emerald-600">{r.snf_computed ? parseFloat(r.snf_computed).toFixed(3) : '—'}</td>
+                  <td className="px-4 py-3 font-mono text-slate-600">{r.computed_rate ? `Rs ${parseFloat(r.computed_rate).toFixed(2)}` : '—'}</td>
+                  <td className="px-4 py-3 font-mono font-bold text-emerald-700">{fmt(r.total_amount)}</td>
+                  <td className="px-4 py-3 opacity-0 group-hover:opacity-100 transition">
+                    <button onClick={() => deleteRecord(r.id)} disabled={deleting===r.id}
+                      className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition">
+                      <Trash2 size={13}/>
+                    </button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Add Record Modal */}
-      <Modal isOpen={modal} onClose={() => { setModal(false); setPreview(null); }} title="Add Milk Collection" size="md">
-        <form onSubmit={onSubmit} className="space-y-4">
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
-              <label className="label">Farmer *</label>
-              <select value={form.farmer_id} onChange={f('farmer_id')} className="input">
-                <option value="">Select farmer…</option>
-                {farmers.map(fa => <option key={fa.id} value={fa.id}>{fa.name} ({fa.farmer_code})</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="label">Date *</label>
-              <input type="date" value={form.collection_date} onChange={f('collection_date')} className="input"/>
-            </div>
-            <div>
-              <label className="label">Shift</label>
-              <select value={form.shift} onChange={f('shift')} className="input">
-                <option value="morning">🌅 Morning</option>
-                <option value="evening">🌙 Evening</option>
-              </select>
-            </div>
-            <div>
-              <label className="label">Qty (L/KG) *</label>
-              <input type="number" step="0.01" placeholder="0.00" value={form.quantity_liters} onChange={f('quantity_liters')} className="input font-mono text-center text-lg"/>
-            </div>
-            <div>
-              <label className="label">FAT % *</label>
-              <input type="number" step="0.01" placeholder="0.00" value={form.fat_percentage} onChange={f('fat_percentage')} className="input font-mono text-center text-blue-600"/>
-            </div>
-            <div>
-              <label className="label">LR (Lactometer) *</label>
-              <input type="number" step="0.1" placeholder="0.0" value={form.lactometer_reading} onChange={f('lactometer_reading')} className="input font-mono text-center text-violet-600"/>
-            </div>
-            <div>
-              <label className="label">SNF % <span className="text-slate-400 font-normal">(optional)</span></label>
-              <input type="number" step="0.01" placeholder="0.00" value={form.snf_percentage} onChange={f('snf_percentage')} className="input font-mono text-center"/>
-            </div>
-            <div className="col-span-2">
-              <label className="label">Notes</label>
-              <input value={form.notes} onChange={f('notes')} className="input" placeholder="Any remarks…"/>
-            </div>
-          </div>
-
-          {/* TS + Price Preview */}
-          {(preview || prevLoading) && (
-            <div className="rounded-xl bg-blue-50 border border-blue-100 p-4">
-              {prevLoading ? (
-                <div className="flex items-center gap-2 text-blue-500 text-sm justify-center">
-                  <RefreshCw size={14} className="animate-spin"/>Calculating…
-                </div>
-              ) : preview && (
-                <>
-                  <div className="flex items-center gap-2 mb-3">
-                    <Calculator size={15} className="text-blue-500"/>
-                    <p className="text-sm font-semibold text-blue-700">Live Calculation</p>
-                  </div>
-                  <div className="grid grid-cols-4 gap-2 text-center">
-                    {[
-                      { label:'TS Value',       val: preview.ts,               cls:'text-blue-700' },
-                      { label:'Standardised TS',val: preview.standardised_ts,  cls:'text-violet-700' },
-                      { label:'Rate / Unit',    val: `Rs ${Number(preview.rate_per_unit).toFixed(2)}`, cls:'text-slate-700' },
-                      { label:'Total Payout',   val: `Rs ${Number(preview.total_payout).toLocaleString('en-PK',{maximumFractionDigits:0})}`, cls:'text-emerald-700 font-bold text-base' },
-                    ].map(({ label, val, cls }) => (
-                      <div key={label} className="bg-white rounded-lg p-2 border border-blue-100">
-                        <p className="text-[10px] text-slate-400 mb-1">{label}</p>
-                        <p className={`font-mono text-sm font-semibold ${cls}`}>{val}</p>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => { setModal(false); setPreview(null); }} className="btn-ghost">Cancel</button>
-            <button type="submit" disabled={saving} className="btn-primary">
-              {saving ? 'Saving…' : 'Save Record'}
-            </button>
-          </div>
-        </form>
-      </Modal>
+      {/* Modal */}
+      <MilkModal
+        isOpen={modal}
+        onClose={() => setModal(false)}
+        farmers={farmers}
+        shops={shops}
+        onSaved={load}
+      />
     </div>
   );
 }

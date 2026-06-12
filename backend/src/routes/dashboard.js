@@ -1,14 +1,13 @@
-// backend/src/routes/dashboard.js
-const dashRouter = require('express').Router();
-const db         = require('../config/db');
+const express = require('express');
+const db      = require('../config/db');
 const { authenticate, adminOnly } = require('../middleware/auth');
 
+// ── Admin Dashboard ───────────────────────────────────────────────────────────
+const dashRouter = express.Router();
 dashRouter.use(authenticate, adminOnly);
 
 dashRouter.get('/', async (req, res, next) => {
   try {
-    // ── Tenure / date range ──────────────────────────────────────────
-    // tenure: '1d' | '7d' | '30d' | 'custom'
     const { tenure = '1d', date_from, date_to } = req.query;
 
     let periodStart, periodEnd;
@@ -22,13 +21,11 @@ dashRouter.get('/', async (req, res, next) => {
     } else {
       periodEnd = fmt(today);
       if (tenure === '7d') {
-        const s = new Date(today); s.setDate(s.getDate() - 6);
-        periodStart = fmt(s);
+        const s = new Date(today); s.setDate(s.getDate() - 6); periodStart = fmt(s);
       } else if (tenure === '30d') {
-        const s = new Date(today); s.setDate(s.getDate() - 29);
-        periodStart = fmt(s);
+        const s = new Date(today); s.setDate(s.getDate() - 29); periodStart = fmt(s);
       } else {
-        periodStart = fmt(today); // 1d default
+        periodStart = fmt(today);
       }
     }
 
@@ -63,18 +60,16 @@ dashRouter.get('/', async (req, res, next) => {
       [periodStart, periodEnd]
     );
 
-    // ── Stock Left (overall) ─────────────────────────────────────────
-    // All milk ever collected up to periodEnd minus all milk ever sold up to periodEnd
+    // ── Stock Left ───────────────────────────────────────────────────
     const stockOverall = await db.queryOne(
       `SELECT
          COALESCE((SELECT SUM(quantity_liters) FROM milk_records WHERE collection_date <= $1),0)
-         - COALESCE((SELECT SUM(quantity_liters) FROM milk_sales WHERE sale_date <= $1),0)
+         - COALESCE((SELECT SUM(quantity_liters) FROM milk_sales   WHERE sale_date      <= $1),0)
          AS stock_liters`,
       [periodEnd]
     );
 
     // ── Stock Per Shop ───────────────────────────────────────────────
-    // Walk-in sales go through shops (walkin_sales table)
     const [shopStock] = await db.query(
       `SELECT s.id, s.shop_name,
          COALESCE(ws.sold, 0) AS sold_liters
@@ -90,16 +85,16 @@ dashRouter.get('/', async (req, res, next) => {
       [periodEnd]
     );
 
-    // ── Purchase Breakdown (per farmer/collection centre) ────────────
+    // ── Purchase Breakdown ───────────────────────────────────────────
     const [purchaseBreakdown] = await db.query(
       `SELECT f.name AS farmer_name,
               COALESCE(f.centre_name, f.name) AS centre_name,
               f.farmer_code,
               COALESCE(f.village, f.address, '—') AS location,
-              SUM(mr.quantity_liters) AS liters,
-              SUM(mr.total_amount)    AS amount,
-              AVG(mr.fat_percentage)  AS avg_fat,
-              COUNT(*)                AS records,
+              SUM(mr.quantity_liters)  AS liters,
+              SUM(mr.total_amount)     AS amount,
+              AVG(mr.fat_percentage)   AS avg_fat,
+              COUNT(*)                 AS records,
               MODE() WITHIN GROUP (ORDER BY s.shop_name) AS shop_name
        FROM milk_records mr
        JOIN farmers f ON f.id = mr.farmer_id
@@ -173,14 +168,9 @@ dashRouter.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-module.exports = { dashRouter, staffDashRouter };
-
-// ── Staff/Purchase dashboard ──────────────────────────────────────────────
-const staffDashRouter = require('express').Router();
-const staffDb = require('../config/db');
-const { authenticate: staffAuth } = require('../middleware/auth');
-
-staffDashRouter.use(staffAuth);
+// ── Staff / Purchase Dashboard ────────────────────────────────────────────────
+const staffDashRouter = express.Router();
+staffDashRouter.use(authenticate);
 
 staffDashRouter.get('/', async (req, res, next) => {
   try {
@@ -205,7 +195,8 @@ staffDashRouter.get('/', async (req, res, next) => {
       }
     }
 
-    const kpi = await staffDb.queryOne(
+    // KPI — scoped to this staff user
+    const kpi = await db.queryOne(
       `SELECT
          COALESCE(SUM(quantity_liters),0) AS total_liters,
          COALESCE(AVG(fat_percentage),0)  AS avg_fat,
@@ -222,11 +213,11 @@ staffDashRouter.get('/', async (req, res, next) => {
          ),0) AS avg_ts,
          COUNT(*) AS entries
        FROM milk_records
-       WHERE recorded_by=$1 AND collection_date BETWEEN $2 AND $3`,
+       WHERE recorded_by = $1 AND collection_date BETWEEN $2 AND $3`,
       [userId, periodStart, periodEnd]
     );
 
-    const [details] = await staffDb.query(
+    const [details] = await db.query(
       `SELECT mr.id, mr.collection_date,
               mr.collection_time,
               mr.quantity_liters, mr.fat_percentage,
@@ -248,13 +239,16 @@ staffDashRouter.get('/', async (req, res, next) => {
        FROM milk_records mr
        JOIN farmers f ON f.id = mr.farmer_id
        LEFT JOIN shops s ON s.id = mr.shop_id
-       WHERE mr.recorded_by=$1 AND mr.collection_date BETWEEN $2 AND $3
+       WHERE mr.recorded_by = $1 AND mr.collection_date BETWEEN $2 AND $3
        ORDER BY mr.collection_date DESC, mr.collection_time DESC NULLS LAST`,
       [userId, periodStart, periodEnd]
     );
 
-    res.json({ success: true, data: { tenure, period: { from: periodStart, to: periodEnd }, kpi, details } });
+    res.json({
+      success: true,
+      data: { tenure, period: { from: periodStart, to: periodEnd }, kpi, details },
+    });
   } catch (err) { next(err); }
 });
 
-// staffDashRouter exported above
+module.exports = { dashRouter, staffDashRouter };

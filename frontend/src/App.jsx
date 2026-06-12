@@ -28,10 +28,11 @@ import Settings   from './pages/admin/Settings';
 import Customers  from './pages/admin/Customers';
 import Products   from './pages/admin/Products';
 import Invoices   from './pages/admin/Invoices';
-import WalkIn     from './pages/admin/WalkIn';   // ← was missing
+import WalkIn     from './pages/admin/WalkIn';
 
 import StaffDashboard from './pages/staff/StaffDashboard';
 import MilkEntry      from './pages/staff/MilkEntry';
+import MilkHistory    from './pages/staff/MilkHistory';
 
 function RequireAuth({ children, adminOnly = false }) {
   const { isLoggedIn, isLoading, user } = useAuthStore();
@@ -66,13 +67,12 @@ export default function App() {
       <Routes>
         {/* Public */}
         <Route path="/login"           element={<LoginPage />} />
-        
         <Route path="/verify-email"    element={<VerifyEmailPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password"  element={<ResetPasswordPage />} />
         <Route path="/oauth-callback"  element={<OAuthCallback />} />
 
-        {/* Admin — all under RequireAuth + AdminLayout */}
+        {/* Admin */}
         <Route path="/admin" element={<RequireAuth adminOnly><AdminLayout /></RequireAuth>}>
           <Route index             element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard"  element={<Dashboard />} />
@@ -90,13 +90,14 @@ export default function App() {
           <Route path="customers"  element={<Customers />} />
           <Route path="products"   element={<Products />} />
           <Route path="invoices"   element={<Invoices />} />
-          <Route path="walkin"     element={<WalkIn />} />  {/* ← moved inside, now auth-protected */}
+          <Route path="walkin"     element={<WalkIn />} />
         </Route>
 
         {/* Staff */}
         <Route path="/staff" element={<RequireAuth><StaffLayout /></RequireAuth>}>
-          <Route index       element={<StaffDashboard />} />
-          <Route path="milk" element={<MilkEntry />} />
+          <Route index         element={<StaffDashboard />} />
+          <Route path="milk"   element={<MilkEntry />} />
+          <Route path="history" element={<MilkHistory />} />
         </Route>
 
         <Route path="/"  element={<RootRedirect />} />
