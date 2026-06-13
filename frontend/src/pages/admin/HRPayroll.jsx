@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { UserCheck, Plus, CreditCard, DollarSign, Users, AlertCircle, Pencil, UserX, UserCheck2, Eye, EyeOff, Shield } from 'lucide-react';
+import { UserCheck, Plus, CreditCard, DollarSign, Users, AlertCircle, Pencil, UserX, UserCheck2, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import api from '../../api/client';
@@ -14,29 +14,10 @@ const DEPT_PERMS = {
   sales:    ['sales','customers','products','dashboard'],
   purchase: ['milk','customers_view','dashboard'],
 };
-const ALL_PERMS = ['dashboard','milk','customers','customers_view','sales','billing','products','hr','expenses','reports','settings'];
-
-// Grouped for UI display — reports is NOT in any group (admin only)
-const PERM_GROUPS = [
-  { label:'Core',     icon:'📊', perms:['dashboard'] },
-  { label:'Milk',     icon:'🥛', perms:['milk','customers_view'] },
-  { label:'Sales',    icon:'🛒', perms:['sales','customers','products','billing'] },
-  { label:'Finance',  icon:'💰', perms:['expenses'] },
-  { label:'HR',       icon:'👥', perms:['hr'] },
-  { label:'Settings', icon:'⚙️', perms:['settings'] },
-];
-
-const PERM_DESC = {
-  dashboard:      'View dashboard & KPIs',
-  milk:           'Add / edit milk records',
-  customers:      'Manage customers',
-  customers_view: 'View customers (read-only)',
-  sales:          'Create & manage sales',
-  billing:        'Access billing & invoices',
-  products:       'Manage products & pricing',
-  hr:             'HR & payroll access',
-  expenses:       'Record & view expenses',
-  settings:       'System settings',
+// What each portal type can see
+const PORTAL_DESC = {
+  sales:    { label:'Sales', color:'badge-green', icon:'🛒', access: ['Dashboard', 'Walk-in Sales', 'Customers', 'Products'] },
+  purchase: { label:'Purchase', color:'badge-blue', icon:'🥛', access: ['Dashboard', 'Milk Collection (Supplier entry)', 'Supplier view'] },
 };
 
 const deptColor = { sales:'badge-green', purchase:'badge-blue' };
@@ -149,17 +130,6 @@ export default function HRPayroll() {
     finally { setSaving(false); }
   };
 
-  const togglePerm = (perm) => {
-    setForm(p => ({
-      ...p,
-      extra_permissions: p.extra_permissions.includes(perm)
-        ? p.extra_permissions.filter(x=>x!==perm)
-        : [...p.extra_permissions, perm]
-    }));
-  };
-
-  const deptDefaultPerms = DEPT_PERMS[form.department] || [];
-
   const TABS = [{ id:'employees',label:'Employees',icon:Users },{ id:'payroll',label:'Payroll',icon:DollarSign }];
 
   return (
@@ -202,7 +172,7 @@ export default function HRPayroll() {
                     <td>{parseFloat(e.pending_advance)>0
                       ? <span className="text-amber-600 font-mono text-sm flex items-center gap-1"><AlertCircle size={12}/>{fmt(e.pending_advance)}</span>
                       : <span className="text-slate-400 text-xs">—</span>}</td>
-                    <td>{e.user_id ? <span className="badge-green text-xs flex items-center gap-1"><Shield size={10}/>Active</span> : <span className="badge-gray text-xs">No Login</span>}</td>
+                    <td>{e.user_id ? <span className="badge-green text-xs">✓ Active</span> : <span className="badge-gray text-xs">No Login</span>}</td>
                     <td>
                       <div className="flex gap-1.5">
                         {e.is_active ? <>
@@ -267,74 +237,39 @@ export default function HRPayroll() {
               <input type="date" value={form.join_date} onChange={e=>setForm(p=>({...p,join_date:e.target.value}))} className="input"/></div>
             <div><label className="label">Designation</label>
               <input value={form.designation} onChange={e=>setForm(p=>({...p,designation:e.target.value}))} className="input" placeholder="Driver, Accountant…"/></div>
-            <div><label className="label">Department *</label>
-              <select value={form.department} onChange={e=>setForm(p=>({...p,department:e.target.value,extra_permissions:[]}))} className="input">
-                {Object.entries(DEPT_LABELS).map(([v,l])=><option key={v} value={v}>{l}</option>)}
-              </select></div>
-            <div className="col-span-2"><label className="label">Base Salary (PKR) *</label>
+            <div><label className="label">Base Salary (PKR) *</label>
               <input type="number" step="100" value={form.base_salary} onChange={e=>setForm(p=>({...p,base_salary:e.target.value}))} className="input font-mono" placeholder="25000"/></div>
           </div>
 
-          {/* Permissions preview */}
-          <div className="border border-slate-200 rounded-xl p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Shield size={15} className="text-[#1d6faa]"/>
-                <p className="text-sm font-semibold text-slate-700">Access Control</p>
-              </div>
-              <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-lg">
-                Financial Reports: Admin only
-              </span>
-            </div>
-
-            <p className="text-xs text-slate-400 pb-1 border-b border-slate-100">
-              ✅ Auto-granted by department: <span className="font-semibold text-slate-600">{deptDefaultPerms.join(', ') || 'none'}</span>
-            </p>
-
-            <div className="space-y-3 pt-1">
-              {PERM_GROUPS.map(group => (
-                <div key={group.label}>
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                    {group.icon} {group.label}
+          {/* Department / Portal Type */}
+          <div className="space-y-2">
+            <label className="label">Portal Type *</label>
+            <div className="grid grid-cols-2 gap-3">
+              {Object.entries(PORTAL_DESC).map(([key, info]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setForm(p => ({ ...p, department: key, extra_permissions: [] }))}
+                  className={`text-left border-2 rounded-xl p-4 transition ${
+                    form.department === key
+                      ? 'border-[#1d6faa] bg-blue-50'
+                      : 'border-slate-200 hover:border-slate-300 bg-white'
+                  }`}
+                >
+                  <p className="text-lg mb-1">{info.icon}</p>
+                  <p className={`font-semibold text-sm ${form.department === key ? 'text-[#1d6faa]' : 'text-slate-700'}`}>
+                    {info.label}
                   </p>
-                  <div className="space-y-1">
-                    {group.perms.map(perm => {
-                      const isDefault = deptDefaultPerms.includes(perm);
-                      const isGranted = isDefault || form.extra_permissions.includes(perm);
-                      return (
-                        <label key={perm}
-                          className={`flex items-center justify-between px-3 py-2 rounded-xl border cursor-pointer transition
-                            ${isDefault
-                              ? 'bg-blue-50 border-blue-100 cursor-not-allowed opacity-70'
-                              : isGranted
-                                ? 'bg-emerald-50 border-emerald-200'
-                                : 'bg-white border-slate-200 hover:border-slate-300'}`}
-                        >
-                          <div>
-                            <p className={`text-xs font-semibold capitalize ${isDefault ? 'text-[#1d6faa]' : isGranted ? 'text-emerald-700' : 'text-slate-600'}`}>
-                              {perm.replace(/_/g,' ')}
-                              {isDefault && <span className="ml-1.5 text-[10px] font-normal text-blue-400">(default)</span>}
-                            </p>
-                            <p className="text-[10px] text-slate-400 mt-0.5">{PERM_DESC[perm]}</p>
-                          </div>
-                          <input
-                            type="checkbox"
-                            disabled={isDefault}
-                            checked={isGranted}
-                            onChange={() => !isDefault && togglePerm(perm)}
-                            className="w-4 h-4 accent-[#1d6faa] rounded cursor-pointer"
-                          />
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
+                  <ul className="mt-2 space-y-0.5">
+                    {info.access.map(a => (
+                      <li key={a} className="text-[11px] text-slate-500 flex items-center gap-1">
+                        <span className="text-emerald-500">✓</span> {a}
+                      </li>
+                    ))}
+                  </ul>
+                </button>
               ))}
             </div>
-
-            <p className="text-[10px] text-slate-400 pt-1 border-t border-slate-100">
-              🔒 Financial Report access is restricted to Admin only and cannot be granted here.
-            </p>
           </div>
 
           {/* Portal Access — explicit opt-in */}

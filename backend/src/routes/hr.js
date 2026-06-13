@@ -47,27 +47,35 @@ router.post('/employees',
   validate,
   async (req, res, next) => {
     try {
-      const { name,phone,address,designation,department='sales',base_salary,join_date,email,password,extra_permissions=[] } = req.body;
+      const { name, phone, address, designation, department='sales', base_salary, join_date, email, password } = req.body;
+      if (!['sales','purchase'].includes(department)) {
+        return res.status(400).json({ success:false, message:'Department must be sales or purchase' });
+      }
+      // Auto-assign permissions based on department — no manual override
+      const autoPerms = DEPT_PERMS[department] || [];
+
       const m = await db.queryOne('SELECT COALESCE(MAX(id),0) AS m FROM employees');
       const emp_code = `EMP-${String(Number(m.m)+1).padStart(4,'0')}`;
+
       let user_id = null;
       if (email && password) {
-        const ex = await db.queryOne('SELECT id FROM users WHERE email=$1',[email]);
-        if (ex) return res.status(409).json({success:false,message:'Email in use'});
-        const hash = await bcrypt.hash(password,12);
+        const ex = await db.queryOne('SELECT id FROM users WHERE email=$1', [email]);
+        if (ex) return res.status(409).json({ success:false, message:'Email already in use' });
+        const hash = await bcrypt.hash(password, 12);
         const [ur] = await db.query(
           `INSERT INTO users (name,email,password_hash,role,is_active,email_verified,department,permissions)
            VALUES ($1,$2,$3,'staff',true,true,$4,$5) RETURNING id`,
-          [name,email,hash,department,JSON.stringify(extra_permissions)]
+          [name, email, hash, department, JSON.stringify(autoPerms)]
         );
         user_id = ur.insertId;
       }
+
       const [r] = await db.query(
         `INSERT INTO employees (emp_code,name,phone,address,designation,department,base_salary,join_date,user_id,created_by)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
-        [emp_code,name,phone||null,address||null,designation||null,department,base_salary,join_date||null,user_id,req.user.id]
+        [emp_code, name, phone||null, address||null, designation||null, department, base_salary, join_date||null, user_id, req.user.id]
       );
-      res.status(201).json({success:true,data:{id:r.insertId,emp_code,user_id}});
+      res.status(201).json({ success:true, data:{ id:r.insertId, emp_code, user_id } });
     } catch(err){next(err);}
   }
 );
@@ -75,15 +83,15 @@ router.post('/employees',
 // PUT update employee
 router.put('/employees/:id', async (req, res, next) => {
   try {
-    const {name,phone,designation,department,base_salary,extra_permissions} = req.body;
+    const {name, phone, designation, department, base_salary} = req.body;
+    const autoPerms = DEPT_PERMS[department] || [];
     await db.query('UPDATE employees SET name=$1,phone=$2,designation=$3,department=$4,base_salary=$5 WHERE id=$6',
-      [name,phone||null,designation||null,department,base_salary,req.params.id]);
-    if (extra_permissions !== undefined) {
-      await db.query(
-        'UPDATE users SET department=$1,permissions=$2 WHERE id=(SELECT user_id FROM employees WHERE id=$3)',
-        [department,JSON.stringify(extra_permissions),req.params.id]
-      );
-    }
+      [name, phone||null, designation||null, department, base_salary, req.params.id]);
+    // Always sync permissions when department changes
+    await db.query(
+      'UPDATE users SET department=$1,permissions=$2 WHERE id=(SELECT user_id FROM employees WHERE id=$3)',
+      [department, JSON.stringify(autoPerms), req.params.id]
+    );
     res.json({success:true});
   } catch(err){next(err);}
 });

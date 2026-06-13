@@ -47,3 +47,8 @@ ALTER TABLE receipts
   ADD COLUMN IF NOT EXISTS shop_id BIGINT REFERENCES shops(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS idx_receipts_shop ON receipts(shop_id);
+
+-- Add department and permissions columns to users table (required for staff portal access)
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS department   VARCHAR(50)  DEFAULT 'sales',
+  ADD COLUMN IF NOT EXISTS permissions  JSONB        DEFAULT '[]'::jsonb;
