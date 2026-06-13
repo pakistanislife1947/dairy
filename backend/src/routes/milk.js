@@ -24,19 +24,10 @@ async function isMigrated() {
   return _migrated;
 }
 
+// Minimal rules — old frontend sends shift/morning which must not fail
 const rules = [
-  body('farmer_id')
-    .notEmpty().withMessage('farmer_id required')
-    .isInt({ min: 1 }).withMessage('Invalid farmer_id'),
-  body('collection_date').notEmpty().withMessage('collection_date required'),
   body('quantity_liters').isFloat({ min: 0.001 }).withMessage('Quantity must be > 0'),
   body('fat_percentage').isFloat({ min: 0, max: 100 }).withMessage('FAT% must be 0–100'),
-  body('lactometer_reading').optional({ nullable: true }).isFloat({ min: 0, max: 50 }),
-  body('snf_percentage').optional({ nullable: true }).isFloat({ min: 0, max: 100 }),
-  body('target_ts').optional({ nullable: true }).isFloat({ min: 1, max: 30 }),
-  body('shop_id').optional({ nullable: true }).isInt({ min: 1 }),
-  body('notes').optional({ nullable: true }).isString().isLength({ max: 500 }),
-  body('shift').optional({ nullable: true }),
 ];
 
 // ── GET list ─────────────────────────────────────────────────────────────────
@@ -135,6 +126,13 @@ router.post('/', rules, validate, async (req, res, next) => {
       lactometer_reading, snf_percentage, shop_id, notes, target_ts
     } = req.body;
 
+    // Manual checks (loose — old frontend builds may omit farmer_id)
+    const fid = parseInt(farmer_id, 10);
+    if (!fid || fid < 1) {
+      return res.status(422).json({ success: false, message: 'Select a supplier first.' });
+    }
+    const cd = collection_date || new Date().toISOString().slice(0, 10);
+
     let cfg = {};
     try { cfg = await getPricingConfig(); } catch {}
     if (target_ts && parseFloat(target_ts) > 0) cfg.target_ts = parseFloat(target_ts);
@@ -161,7 +159,7 @@ router.post('/', rules, validate, async (req, res, next) => {
             sp_gravity, computed_rate, total_amount, shop_id, notes, recorded_by)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
          RETURNING id`,
-        [farmer_id, collection_date, collection_time, parseFloat(quantity_liters),
+        [fid, cd, collection_time, parseFloat(quantity_liters),
          parseFloat(fat_percentage), snf_percentage ? parseFloat(snf_percentage) : null,
          lr, ts, standardised_ts, snf_computed,
          sp_gravity, rate_per_unit, total_payout, shop_id || null, notes || null, req.user.id]
@@ -175,7 +173,7 @@ router.post('/', rules, validate, async (req, res, next) => {
             snf_percentage, computed_rate, total_amount, notes, recorded_by)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
          RETURNING id`,
-        [farmer_id, collection_date, parseFloat(quantity_liters),
+        [fid, cd, parseFloat(quantity_liters),
          parseFloat(fat_percentage), snf_percentage ? parseFloat(snf_percentage) : null,
          rate_per_unit, total_payout, notes || null, req.user.id]
       );
