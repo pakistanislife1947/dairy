@@ -36,6 +36,7 @@ const rules = [
   body('target_ts').optional({ nullable: true }).isFloat({ min: 1, max: 30 }),
   body('shop_id').optional({ nullable: true }).isInt({ min: 1 }),
   body('notes').optional({ nullable: true }).isString().isLength({ max: 500 }),
+  body('shift').optional({ nullable: true }),
 ];
 
 // ── GET list ─────────────────────────────────────────────────────────────────
