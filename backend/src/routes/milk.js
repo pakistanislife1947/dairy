@@ -119,17 +119,25 @@ router.post('/preview-rate', async (req, res, next) => {
 });
 
 // ── POST create ───────────────────────────────────────────────────────────────
-router.post('/', rules, validate, async (req, res, next) => {
+router.post('/', async (req, res, next) => {
   try {
     const {
       farmer_id, collection_date, quantity_liters, fat_percentage,
       lactometer_reading, snf_percentage, shop_id, notes, target_ts
     } = req.body;
 
-    // Manual checks (loose — old frontend builds may omit farmer_id)
+    // Manual validation — no express-validator (old JS sends shift which was breaking)
     const fid = parseInt(farmer_id, 10);
     if (!fid || fid < 1) {
       return res.status(422).json({ success: false, message: 'Select a supplier first.' });
+    }
+    const qty = parseFloat(quantity_liters);
+    if (!qty || qty <= 0) {
+      return res.status(422).json({ success: false, message: 'Quantity must be > 0.' });
+    }
+    const fat = parseFloat(fat_percentage);
+    if (isNaN(fat) || fat < 0 || fat > 100) {
+      return res.status(422).json({ success: false, message: 'FAT% must be 0-100.' });
     }
     const cd = collection_date || new Date().toISOString().slice(0, 10);
 
@@ -140,10 +148,7 @@ router.post('/', rules, validate, async (req, res, next) => {
     const lr = lactometer_reading ? parseFloat(lactometer_reading) : 0;
 
     const { ts, standardised_ts, snf_computed, sp_gravity, rate_per_unit, total_payout } = computeTS({
-      cfg,
-      fat:    parseFloat(fat_percentage),
-      lr,
-      weight: parseFloat(quantity_liters),
+      cfg, fat, lr, weight: qty,
     });
 
     const collection_time = new Date().toISOString();
@@ -159,8 +164,8 @@ router.post('/', rules, validate, async (req, res, next) => {
             sp_gravity, computed_rate, total_amount, shop_id, notes, recorded_by)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
          RETURNING id`,
-        [fid, cd, collection_time, parseFloat(quantity_liters),
-         parseFloat(fat_percentage), snf_percentage ? parseFloat(snf_percentage) : null,
+        [fid, cd, collection_time, qty,
+         fat, snf_percentage ? parseFloat(snf_percentage) : null,
          lr, ts, standardised_ts, snf_computed,
          sp_gravity, rate_per_unit, total_payout, shop_id || null, notes || null, req.user.id]
       );
@@ -173,8 +178,8 @@ router.post('/', rules, validate, async (req, res, next) => {
             snf_percentage, computed_rate, total_amount, notes, recorded_by)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
          RETURNING id`,
-        [fid, cd, parseFloat(quantity_liters),
-         parseFloat(fat_percentage), snf_percentage ? parseFloat(snf_percentage) : null,
+        [fid, cd, qty,
+         fat, snf_percentage ? parseFloat(snf_percentage) : null,
          rate_per_unit, total_payout, notes || null, req.user.id]
       );
       insertedId = result[0]?.id;
