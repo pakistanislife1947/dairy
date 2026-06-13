@@ -51,6 +51,9 @@ router.post('/employees',
       if (!['sales','purchase'].includes(department)) {
         return res.status(400).json({ success:false, message:'Department must be sales or purchase' });
       }
+      if (email && !password) return res.status(400).json({ success:false, message:'Password is required when setting up portal access' });
+      if (email && password && password.length < 8) return res.status(400).json({ success:false, message:'Password must be at least 8 characters' });
+
       // Auto-assign permissions based on department — no manual override
       const autoPerms = DEPT_PERMS[department] || [];
 

@@ -34,8 +34,9 @@ export default function HRPayroll() {
   const [showPass, setShowPass] = useState(false);
   const [fireTarget, setFire] = useState(null);
   const [showFired, setShowFired] = useState(false);
+  const [portalAccess, setPortalAccess] = useState(false);
 
-  const emptyForm = { name:'', phone:'', join_date:'', designation:'', department:'sales', base_salary:'', email:'', password:'', extra_permissions:[] };
+  const emptyForm = { name:'', phone:'', join_date:'', designation:'', department:'sales', base_salary:'', email:'', password:'' };
   const [form, setForm]       = useState(emptyForm);
   const [advForm, setAdvForm] = useState({ amount:'', advance_date: new Date().toISOString().slice(0,10), notes:'' });
   const [hrTab, setHrTab]     = useState('advance');
@@ -72,7 +73,7 @@ export default function HRPayroll() {
         await api.post('/hr/employees', form);
         toast.success('Employee added' + (form.email?' with login':''));
       }
-      setModal(null); setForm(emptyForm); loadEmps();
+      setModal(null); setForm(emptyForm); setPortalAccess(false); loadEmps();
     } catch (err) { toast.error(err.response?.data?.message||'Failed'); }
     finally { setSaving(false); }
   };
@@ -226,7 +227,7 @@ export default function HRPayroll() {
       )}
 
       {/* Add/Edit Employee Modal */}
-      <Modal isOpen={modal==='add'||modal==='edit'} onClose={()=>setModal(null)} title={modal==='edit'?`Edit: ${selEmp?.name}`:'Add Employee'} size="md">
+      <Modal isOpen={modal==='add'||modal==='edit'} onClose={()=>{ setModal(null); setPortalAccess(false); setForm(emptyForm); }} title={modal==='edit'?`Edit: ${selEmp?.name}`:'Add Employee'} size="md">
         <form onSubmit={onEmployee} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2"><label className="label">Full Name *</label>
@@ -280,40 +281,51 @@ export default function HRPayroll() {
                   <p className="text-sm font-semibold text-slate-700">Portal Access</p>
                   <p className="text-xs text-slate-400 mt-0.5">Give this employee login access to the system</p>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox"
-                    checked={!!form.email}
-                    onChange={e => {
-                      if (!e.target.checked) setForm(p=>({...p,email:'',password:''}));
-                      else setForm(p=>({...p,email:p.email||''}));
-                    }}
-                    className="sr-only peer"/>
-                  <div className="w-10 h-5 bg-slate-200 peer-checked:bg-[#1d6faa] rounded-full transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5"/>
-                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPortalAccess(p => !p);
+                    if (portalAccess) setForm(p => ({ ...p, email:'', password:'' }));
+                  }}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${portalAccess ? 'bg-[#1d6faa]' : 'bg-slate-300'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${portalAccess ? 'translate-x-6' : 'translate-x-1'}`}/>
+                </button>
               </div>
 
-              {!!form.email && (
+              {portalAccess && (
                 <div className="space-y-3 pt-1">
                   <div>
-                    <label className="label">Login Email</label>
-                    <input type="email" value={form.email}
-                      onChange={e=>setForm(p=>({...p,email:e.target.value}))}
-                      className="input" placeholder="ali@dairy.local"/>
+                    <label className="label">Login Email *</label>
+                    <input
+                      type="email"
+                      value={form.email}
+                      onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+                      className="input"
+                      placeholder="ali@brimi.com"
+                      required={portalAccess}
+                    />
                   </div>
                   <div>
-                    <label className="label">Password</label>
+                    <label className="label">Password *</label>
                     <div className="relative">
-                      <input type={showPass?'text':'password'} value={form.password}
-                        onChange={e=>setForm(p=>({...p,password:e.target.value}))}
-                        className="input pr-10" placeholder="Min 8 characters"/>
-                      <button type="button" onClick={()=>setShowPass(p=>!p)}
+                      <input
+                        type={showPass ? 'text' : 'password'}
+                        value={form.password}
+                        onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
+                        className="input pr-10"
+                        placeholder="Min 8 characters"
+                        required={portalAccess}
+                        minLength={8}
+                      />
+                      <button type="button" onClick={() => setShowPass(p => !p)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
-                        {showPass?<EyeOff size={15}/>:<Eye size={15}/>}
+                        {showPass ? <EyeOff size={15}/> : <Eye size={15}/>}
                       </button>
                     </div>
                   </div>
                   <p className="text-[10px] text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5">
-                    ⚠️ Only enable this if the employee needs to use the system. They will only see what their permissions allow.
+                    ⚠️ Employee will only see pages allowed for their portal type ({PORTAL_DESC[form.department]?.label}).
                   </p>
                 </div>
               )}
@@ -321,7 +333,7 @@ export default function HRPayroll() {
           )}
 
           <div className="flex justify-end gap-3">
-            <button type="button" onClick={()=>setModal(null)} className="btn-ghost">Cancel</button>
+            <button type="button" onClick={()=>{ setModal(null); setPortalAccess(false); setForm(emptyForm); }} className="btn-ghost">Cancel</button>
             <button type="submit" disabled={saving} className="btn-primary">{saving?'Saving…':modal==='edit'?'Save Changes':'Add Employee'}</button>
           </div>
         </form>
