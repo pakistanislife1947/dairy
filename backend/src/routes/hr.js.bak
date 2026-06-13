@@ -7,25 +7,17 @@ const { authenticate, adminOnly } = require('../middleware/auth');
 
 router.use(authenticate, adminOnly);
 
-const DEPTS = ['sales','purchase'];
+const DEPTS = ['milk_collection','sales','accounts','hr','manager','other'];
 const DEPT_PERMS = {
-  sales:    ['sales','customers','products','dashboard'],
-  purchase: ['milk','customers_view','dashboard'],
+  milk_collection:['milk','customers_view','dashboard'],
+  sales:          ['sales','customers','products','dashboard'],
+  accounts:       ['billing','reports','customers','dashboard'],
+  hr:             ['hr','expenses','dashboard'],
+  manager:        ['milk','sales','billing','customers','products','hr','expenses','reports','dashboard'],
+  other:          ['dashboard'],
 };
 
 router.get('/departments', (_,res) => res.json({ success:true, data:DEPTS, perms:DEPT_PERMS }));
-
-// GET all employees including fired (for showFired toggle)
-router.get('/employees/all', async (req, res, next) => {
-  try {
-    const [rows] = await db.query(
-      `SELECT e.*,u.email,u.is_active AS user_active,u.department AS user_dept,u.permissions AS extra_perms,
-         COALESCE((SELECT SUM(amount-recovered) FROM advance_salary WHERE employee_id=e.id AND status!='recovered'),0) AS pending_advance
-       FROM employees e LEFT JOIN users u ON u.id=e.user_id ORDER BY e.is_active DESC,e.name`
-    );
-    res.json({ success:true, data:rows });
-  } catch(err){next(err);}
-});
 
 // GET employees
 router.get('/employees', async (req, res, next) => {
@@ -47,7 +39,7 @@ router.post('/employees',
   validate,
   async (req, res, next) => {
     try {
-      const { name,phone,address,designation,department='sales',base_salary,join_date,email,password,extra_permissions=[] } = req.body;
+      const { name,phone,address,designation,department='other',base_salary,join_date,email,password,extra_permissions=[] } = req.body;
       const m = await db.queryOne('SELECT COALESCE(MAX(id),0) AS m FROM employees');
       const emp_code = `EMP-${String(Number(m.m)+1).padStart(4,'0')}`;
       let user_id = null;

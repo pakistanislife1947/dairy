@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ShoppingBag, Plus, Minus, Printer, Milk, Package } from 'lucide-react';
+import { ShoppingBag, Plus, Minus, Printer, Milk, Package, Store, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../api/client';
 import { PageHeader } from '../../components/ui';
@@ -8,6 +8,9 @@ const fmt = n => `Rs ${Number(n||0).toLocaleString('en-PK',{maximumFractionDigit
 
 export default function WalkIn() {
   const [products, setProducts] = useState([]);
+  const [shops, setShops]       = useState([]);
+  const [shopId, setShopId]     = useState('');
+  const [shopStock, setShopStock] = useState(null); // available liters in selected shop
   const [milkRate, setMilkRate] = useState('');
   const [milkQty, setMilkQty]   = useState('');
   const [items, setItems]       = useState([]);
@@ -16,7 +19,14 @@ export default function WalkIn() {
 
   useEffect(()=>{
     api.get('/products').then(r=>setProducts(r.data.data||[]));
+    api.get('/shops').then(r=>setShops(r.data.data||[]));
   },[]);
+
+  // Load shop stock whenever shop changes
+  useEffect(()=>{
+    if (!shopId) { setShopStock(null); return; }
+    api.get(`/shops/${shopId}/stock`).then(r=>setShopStock(r.data.available ?? null)).catch(()=>setShopStock(null));
+  },[shopId]);
 
   const addProduct = (p) => {
     setItems(prev=>{
@@ -36,18 +46,27 @@ export default function WalkIn() {
 
   const onSale = async () => {
     if(total<=0) return toast.error('Add items to sell');
+    const milkQtyNum = parseFloat(milkQty) || 0;
+    if (milkQtyNum > 0 && shopStock !== null && milkQtyNum > shopStock) {
+      return toast.error(`Only ${shopStock.toFixed(1)}L available in this shop`);
+    }
     setSaving(true);
     try {
       const r = await api.post('/customers/sale',{
         customer_type:'walkin',
-        milk_qty: milkQty||0,
+        milk_qty: milkQtyNum||0,
         milk_rate: milkRate||0,
         items,
         sale_date: new Date().toISOString().slice(0,10),
+        shop_id: shopId || null,
       });
       const rec = r.data.data;
       setReceipt({ no:rec.receipt_no, date:new Date().toLocaleDateString('en-PK'), milkQty, milkRate, milkAmount, items:[...items], productsAmount, total });
       setMilkQty(''); setMilkRate(''); setItems([]);
+      // Refresh shop stock after sale
+      if (shopId) {
+        api.get(`/shops/${shopId}/stock`).then(r=>setShopStock(r.data.available ?? null)).catch(()=>{});
+      }
       toast.success(`Receipt: ${rec.receipt_no}`);
     } catch(err){ toast.error(err.response?.data?.message||'Failed'); }
     finally{ setSaving(false); }
@@ -58,6 +77,29 @@ export default function WalkIn() {
   return (
     <div className="space-y-5 max-w-4xl mx-auto">
       <PageHeader title="Walk-in Sale" subtitle="Immediate cash sale — no customer details required"/>
+
+      {/* Shop selector */}
+      <div className="card">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center"><Store size={16} className="text-emerald-600"/></div>
+          <p className="font-semibold text-slate-700">Select Shop</p>
+          {shopStock !== null && (
+            <span className={`ml-auto text-xs font-semibold px-2 py-1 rounded-lg ${shopStock < 5 ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700'}`}>
+              {shopStock < 5 && <AlertTriangle size={11} className="inline mr-1"/>}
+              Stock: {shopStock.toFixed(1)}L
+            </span>
+          )}
+        </div>
+        <select value={shopId} onChange={e=>setShopId(e.target.value)} className="input">
+          <option value="">-- No Shop / General --</option>
+          {shops.filter(s=>s.is_active).map(s=>(
+            <option key={s.id} value={s.id}>{s.shop_name}{s.location ? ` — ${s.location}` : ''}</option>
+          ))}
+        </select>
+        {shopId && shopStock !== null && shopStock <= 0 && (
+          <p className="mt-2 text-xs text-red-500 flex items-center gap-1"><AlertTriangle size={12}/>No milk in stock for this shop. Cannot sell milk.</p>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 

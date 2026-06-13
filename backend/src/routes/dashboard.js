@@ -51,13 +51,13 @@ dashRouter.get('/', async (req, res, next) => {
       { total_liters: 0, purchase_cost: 0, avg_fat: 0, active_farmers: 0, record_count: 0 }
     );
 
-    // Sales KPIs
+    // Sales KPIs — from receipts table (actual cash/walkin/bulk/household sales)
     const salesStats = await safeQuery(
       () => db.queryOne(
         `SELECT COALESCE(SUM(total_amount),0) AS total_revenue,
-                COALESCE(SUM(received_amount),0) AS received,
-                COALESCE(SUM(quantity_liters),0) AS sold_liters
-         FROM milk_sales WHERE sale_date BETWEEN $1 AND $2`,
+                COALESCE(SUM(paid_amount),0)  AS received,
+                COALESCE(SUM(milk_qty),0)      AS sold_liters
+         FROM receipts WHERE receipt_date BETWEEN $1 AND $2`,
         [start, end]
       ),
       { total_revenue: 0, received: 0, sold_liters: 0 }
@@ -72,11 +72,11 @@ dashRouter.get('/', async (req, res, next) => {
       { total_expenses: 0 }
     );
 
-    // Stock
+    // Stock — milk purchased minus milk sold (from receipts)
     const stockRow = await safeQuery(
       () => db.queryOne(
         `SELECT COALESCE((SELECT SUM(quantity_liters) FROM milk_records WHERE collection_date <= $1),0)
-              - COALESCE((SELECT SUM(quantity_liters) FROM milk_sales   WHERE sale_date      <= $1),0) AS stock_liters`,
+              - COALESCE((SELECT SUM(milk_qty) FROM receipts WHERE receipt_date <= $1 AND milk_qty > 0),0) AS stock_liters`,
         [end]
       ),
       { stock_liters: 0 }

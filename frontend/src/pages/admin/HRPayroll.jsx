@@ -8,16 +8,11 @@ import { PageHeader, Modal, SkeletonRow, EmptyState, ConfirmDialog } from '../..
 const fmt = n => `Rs ${Number(n||0).toLocaleString('en-PK',{maximumFractionDigits:0})}`;
 
 const DEPT_LABELS = {
-  milk_collection:'Milk Collection', sales:'Sales', accounts:'Accounts',
-  hr:'HR', manager:'Manager', other:'Other'
+  sales:'Sales', purchase:'Purchase'
 };
 const DEPT_PERMS = {
-  milk_collection:['milk','customers_view','dashboard'],
-  sales:          ['sales','customers','products','dashboard'],
-  accounts:       ['billing','reports','customers','dashboard'],
-  hr:             ['hr','expenses','dashboard'],
-  manager:        ['milk','sales','billing','customers','products','hr','expenses','reports','dashboard'],
-  other:          ['dashboard'],
+  sales:    ['sales','customers','products','dashboard'],
+  purchase: ['milk','customers_view','dashboard'],
 };
 const ALL_PERMS = ['dashboard','milk','customers','customers_view','sales','billing','products','hr','expenses','reports','settings'];
 
@@ -44,7 +39,7 @@ const PERM_DESC = {
   settings:       'System settings',
 };
 
-const deptColor = { milk_collection:'badge-blue', sales:'badge-green', accounts:'badge-yellow', hr:'badge-gray', manager:'bg-purple-100 text-purple-700', other:'badge-gray' };
+const deptColor = { sales:'badge-green', purchase:'badge-blue' };
 
 export default function HRPayroll() {
   const [tab, setTab]         = useState('employees');

@@ -41,3 +41,9 @@ ON CONFLICT (key) DO NOTHING;
 -- 4. Index for shop lookups
 CREATE INDEX IF NOT EXISTS idx_milk_shop    ON milk_records(shop_id);
 CREATE INDEX IF NOT EXISTS idx_milk_centre  ON milk_records(farmer_id, collection_date);
+
+-- v2 patch: add shop_id to receipts for per-shop stock tracking
+ALTER TABLE receipts
+  ADD COLUMN IF NOT EXISTS shop_id BIGINT REFERENCES shops(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_receipts_shop ON receipts(shop_id);

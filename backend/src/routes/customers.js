@@ -160,10 +160,30 @@ router.post('/sale',
   validate,
   async (req, res, next) => {
     try {
-      const { customer_id, customer_type, sale_date, milk_qty=0, milk_rate=0, items=[], notes } = req.body;
+      const { customer_id, customer_type, sale_date, milk_qty=0, milk_rate=0, items=[], notes, shop_id } = req.body;
       if (customer_type==='cash' && !customer_id) return res.status(400).json({ success:false, message:'Customer required for cash sale' });
 
-      const milkAmount    = parseFloat(milk_qty) * parseFloat(milk_rate);
+      const milkQtyNum = parseFloat(milk_qty) || 0;
+
+      // ── Shop stock check — prevent selling more milk than available ──
+      if (milkQtyNum > 0 && shop_id) {
+        const stockRow = await db.queryOne(
+          `SELECT
+             COALESCE((SELECT SUM(quantity_liters) FROM milk_records WHERE shop_id=$1),0)
+           - COALESCE((SELECT SUM(milk_qty) FROM receipts WHERE shop_id=$1 AND milk_qty > 0),0)
+           AS available_stock`,
+          [shop_id]
+        );
+        const available = parseFloat(stockRow?.available_stock || 0);
+        if (milkQtyNum > available) {
+          return res.status(400).json({
+            success: false,
+            message: `Not enough milk in shop. Available: ${available.toFixed(1)}L, Requested: ${milkQtyNum}L`
+          });
+        }
+      }
+
+      const milkAmount    = milkQtyNum * parseFloat(milk_rate);
       const productsAmount = items.reduce((s,i)=>s+parseFloat(i.qty)*parseFloat(i.price),0);
       const total         = milkAmount + productsAmount;
 
@@ -172,10 +192,10 @@ router.post('/sale',
 
       const [r] = await db.query(
         `INSERT INTO receipts (receipt_no,customer_id,customer_type,receipt_date,milk_qty,milk_amount,
-          products_amount,total_amount,paid_amount,status,notes,created_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'paid',$10,$11) RETURNING id`,
+          products_amount,total_amount,paid_amount,status,notes,shop_id,created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'paid',$10,$11,$12) RETURNING id`,
         [no,customer_id||null,customer_type,sale_date||new Date().toISOString().slice(0,10),
-         milk_qty,milkAmount.toFixed(2),productsAmount.toFixed(2),total.toFixed(2),total.toFixed(2),notes||null,req.user.id]
+         milkQtyNum,milkAmount.toFixed(2),productsAmount.toFixed(2),total.toFixed(2),total.toFixed(2),notes||null,shop_id||null,req.user.id]
       );
 
       // Insert line items + reduce stock
