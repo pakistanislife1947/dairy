@@ -165,21 +165,39 @@ router.post('/sale',
 
       const milkQtyNum = parseFloat(milk_qty) || 0;
 
-      // ── Shop stock check — prevent selling more milk than available ──
-      if (milkQtyNum > 0 && shop_id) {
-        const stockRow = await db.queryOne(
-          `SELECT
-             COALESCE((SELECT SUM(quantity_liters) FROM milk_records WHERE shop_id=$1),0)
-           - COALESCE((SELECT SUM(milk_qty) FROM receipts WHERE shop_id=$1 AND milk_qty > 0),0)
-           AS available_stock`,
-          [shop_id]
-        );
-        const available = parseFloat(stockRow?.available_stock || 0);
-        if (milkQtyNum > available) {
-          return res.status(400).json({
-            success: false,
-            message: `Not enough milk in shop. Available: ${available.toFixed(1)}L, Requested: ${milkQtyNum}L`
-          });
+      // ── Stock check — prevent selling more milk than available ──
+      if (milkQtyNum > 0) {
+        if (shop_id) {
+          // Per-shop stock check
+          const stockRow = await db.queryOne(
+            `SELECT GREATEST(0,
+               COALESCE((SELECT SUM(quantity_liters) FROM milk_records WHERE shop_id=$1),0)
+             - COALESCE((SELECT SUM(milk_qty) FROM receipts WHERE shop_id=$1 AND milk_qty > 0),0)
+             ) AS available_stock`,
+            [shop_id]
+          );
+          const available = parseFloat(stockRow?.available_stock || 0);
+          if (milkQtyNum > available) {
+            return res.status(400).json({
+              success: false,
+              message: `Not enough milk in this shop. Available: ${available.toFixed(1)}L, Requested: ${milkQtyNum}L`
+            });
+          }
+        } else {
+          // Global stock check (no shop selected)
+          const stockRow = await db.queryOne(
+            `SELECT GREATEST(0,
+               COALESCE((SELECT SUM(quantity_liters) FROM milk_records),0)
+             - COALESCE((SELECT SUM(milk_qty) FROM receipts WHERE milk_qty > 0),0)
+             ) AS available_stock`
+          );
+          const available = parseFloat(stockRow?.available_stock || 0);
+          if (milkQtyNum > available) {
+            return res.status(400).json({
+              success: false,
+              message: `Not enough milk in stock. Available: ${available.toFixed(1)}L, Requested: ${milkQtyNum}L`
+            });
+          }
         }
       }
 

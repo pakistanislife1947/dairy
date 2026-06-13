@@ -72,11 +72,13 @@ dashRouter.get('/', async (req, res, next) => {
       { total_expenses: 0 }
     );
 
-    // Stock — milk purchased minus milk sold (from receipts)
+    // Stock — milk purchased minus milk sold, floored at 0
     const stockRow = await safeQuery(
       () => db.queryOne(
-        `SELECT COALESCE((SELECT SUM(quantity_liters) FROM milk_records WHERE collection_date <= $1),0)
-              - COALESCE((SELECT SUM(milk_qty) FROM receipts WHERE receipt_date <= $1 AND milk_qty > 0),0) AS stock_liters`,
+        `SELECT GREATEST(0,
+           COALESCE((SELECT SUM(quantity_liters) FROM milk_records WHERE collection_date <= $1),0)
+         - COALESCE((SELECT SUM(milk_qty) FROM receipts WHERE receipt_date <= $1 AND milk_qty > 0),0)
+         ) AS stock_liters`,
         [end]
       ),
       { stock_liters: 0 }
