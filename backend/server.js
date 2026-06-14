@@ -126,6 +126,28 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
+// One-time public setup endpoint — safe to call multiple times (IF NOT EXISTS)
+app.get('/api/setup', async (_req, res) => {
+  const { pool } = require('./src/config/db');
+  const steps = [
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS department  VARCHAR(50)  DEFAULT 'sales'`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions JSONB        DEFAULT '[]'::jsonb`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS shop_id     BIGINT       REFERENCES shops(id) ON DELETE SET NULL`,
+    `ALTER TABLE employees ADD COLUMN IF NOT EXISTS shop_id BIGINT REFERENCES shops(id) ON DELETE SET NULL`,
+    `ALTER TABLE milk_records ADD COLUMN IF NOT EXISTS shop_id BIGINT REFERENCES shops(id) ON DELETE SET NULL`,
+    `ALTER TABLE receipts ADD COLUMN IF NOT EXISTS shop_id  BIGINT REFERENCES shops(id) ON DELETE SET NULL`,
+    `CREATE INDEX IF NOT EXISTS idx_employees_shop ON employees(shop_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_receipts_shop  ON receipts(shop_id)`,
+  ];
+  const results = [];
+  for (const sql of steps) {
+    try { await pool.query(sql); results.push({ ok: true, sql: sql.slice(0, 70) }); }
+    catch (e) { results.push({ ok: false, sql: sql.slice(0, 70), err: e.message }); }
+  }
+  const failed = results.filter(r => !r.ok);
+  res.json({ success: true, message: `Migration: ${results.length - failed.length} ok, ${failed.length} failed`, results });
+});
+
 app.get('/', (_req, res) => {
   res.json({ message: 'Dairy ERP API is running', health: '/api/health' });
 });
@@ -137,7 +159,7 @@ app.use(errorHandler);
 
 // ── Auto-migration — runs on every start, safe (IF NOT EXISTS) ─────────
 async function runAutoMigration() {
-  const db = require('./src/config/db');
+  const { pool } = require('./src/config/db');
   const steps = [
     // users table
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS department  VARCHAR(50)  DEFAULT 'sales'`,
@@ -162,7 +184,7 @@ async function runAutoMigration() {
   ];
   let ok = 0, fail = 0;
   for (const sql of steps) {
-    try { await db.query(sql); ok++; }
+    try { await pool.query(sql); ok++; }
     catch (e) { console.error('Migration step failed:', e.message); fail++; }
   }
   console.log(`✅ Auto-migration done — ${ok} ok, ${fail} failed`);
