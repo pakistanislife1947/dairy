@@ -76,6 +76,7 @@ export default function HRPayroll() {
   const onEmployee = async (ev) => {
     ev.preventDefault();
     if (!form.name || !form.base_salary) return toast.error('Name and salary required');
+    if (form.department === 'sales' && !form.shop_id) return toast.error('Shop is required for Sales staff');
     setSaving(true);
     try {
       const payload = {
@@ -256,16 +257,24 @@ export default function HRPayroll() {
               <input type="date" value={form.join_date} onChange={e=>setForm(p=>({...p,join_date:e.target.value}))} className="input"/></div>
             <div><label className="label">Designation</label>
               <input value={form.designation} onChange={e=>setForm(p=>({...p,designation:e.target.value}))} className="input" placeholder="Driver, Accountant…"/></div>
-            <div className="col-span-2"><label className="label">Assigned Shop *</label>
+            <div><label className="label">Base Salary (PKR) *</label>
+              <input type="number" step="100" value={form.base_salary} onChange={e=>setForm(p=>({...p,base_salary:e.target.value}))} className="input font-mono" placeholder="25000"/></div>
+            <div></div>
+          </div>
+
+          {/* Shop — only for Sales department */}
+          {form.department === 'sales' && (
+            <div>
+              <label className="label">Assigned Shop <span className="text-red-400">*</span></label>
               <select value={form.shop_id} onChange={e=>setForm(p=>({...p,shop_id:e.target.value}))} className="input">
                 <option value="">-- Select Shop --</option>
                 {shops.filter(s=>s.is_active!==false).map(s=>(
                   <option key={s.id} value={String(s.id)}>{s.shop_name}{s.location ? ` — ${s.location}` : ''}</option>
                 ))}
-              </select></div>
-            <div><label className="label">Base Salary (PKR) *</label>
-              <input type="number" step="100" value={form.base_salary} onChange={e=>setForm(p=>({...p,base_salary:e.target.value}))} className="input font-mono" placeholder="25000"/></div>
-          </div>
+              </select>
+              <p className="text-xs text-slate-400 mt-1">Sales staff can only sell from their assigned shop</p>
+            </div>
+          )}
 
           {/* Department / Portal Type */}
           <div className="space-y-2">
@@ -275,7 +284,7 @@ export default function HRPayroll() {
                 <button
                   key={key}
                   type="button"
-                  onClick={() => setForm(p => ({ ...p, department: key, extra_permissions: [] }))}
+                  onClick={() => setForm(p => ({ ...p, department: key, extra_permissions: [], shop_id: key === 'purchase' ? '' : p.shop_id }))}
                   className={`text-left border-2 rounded-xl p-4 transition ${
                     form.department === key
                       ? 'border-[#1d6faa] bg-blue-50'
