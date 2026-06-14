@@ -126,7 +126,7 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-// One-time public setup endpoint — safe to call multiple times (IF NOT EXISTS)
+// One-time public setup endpoint — safe to call multiple times (IF NOT EXISTS) [v2]
 app.get('/api/setup', async (_req, res) => {
   const { pool } = require('./src/config/db');
   const steps = [
