@@ -67,11 +67,16 @@ export default function HRPayroll() {
     if (!form.name || !form.base_salary) return toast.error('Name and salary required');
     setSaving(true);
     try {
+      const payload = {
+        ...form,
+        shop_id: form.shop_id ? parseInt(form.shop_id, 10) : null,
+        base_salary: parseFloat(form.base_salary),
+      };
       if (modal==='edit') {
-        await api.put(`/hr/employees/${selEmp.id}`, form);
+        await api.put(`/hr/employees/${selEmp.id}`, payload);
         toast.success('Employee updated');
       } else {
-        await api.post('/hr/employees', form);
+        await api.post('/hr/employees', payload);
         toast.success('Employee added' + (form.email?' with login':''));
       }
       setModal(null); setForm(emptyForm); setPortalAccess(false); loadEmps();
@@ -241,7 +246,7 @@ export default function HRPayroll() {
             <div><label className="label">Designation</label>
               <input value={form.designation} onChange={e=>setForm(p=>({...p,designation:e.target.value}))} className="input" placeholder="Driver, Accountant…"/></div>
             <div className="col-span-2"><label className="label">Assigned Shop *</label>
-              <select value={form.shop_id} onChange={e=>setForm(p=>({...p,shop_id:e.target.value}))} className="input" required>
+              <select value={form.shop_id} onChange={e=>setForm(p=>({...p,shop_id:e.target.value}))} className="input">
                 <option value="">-- Select Shop --</option>
                 {shops.filter(s=>s.is_active).map(s=>(
                   <option key={s.id} value={s.id}>{s.shop_name}{s.location ? ` — ${s.location}` : ''}</option>

@@ -135,11 +135,45 @@ const { notFound, errorHandler } = require('./src/middleware/errorHandler');
 app.use(notFound);
 app.use(errorHandler);
 
+// ── Auto-migration — runs on every start, safe (IF NOT EXISTS) ─────────
+async function runAutoMigration() {
+  const db = require('./src/config/db');
+  const steps = [
+    // users table
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS department  VARCHAR(50)  DEFAULT 'sales'`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions JSONB        DEFAULT '[]'::jsonb`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS shop_id     BIGINT       REFERENCES shops(id) ON DELETE SET NULL`,
+    // employees table
+    `ALTER TABLE employees ADD COLUMN IF NOT EXISTS shop_id BIGINT REFERENCES shops(id) ON DELETE SET NULL`,
+    // milk_records
+    `ALTER TABLE milk_records ADD COLUMN IF NOT EXISTS shop_id            BIGINT REFERENCES shops(id) ON DELETE SET NULL`,
+    `ALTER TABLE milk_records ADD COLUMN IF NOT EXISTS collection_time    TIME`,
+    `ALTER TABLE milk_records ADD COLUMN IF NOT EXISTS lactometer_reading NUMERIC(6,2)`,
+    `ALTER TABLE milk_records ADD COLUMN IF NOT EXISTS snf_computed       NUMERIC(6,4)`,
+    `ALTER TABLE milk_records ADD COLUMN IF NOT EXISTS sp_gravity         NUMERIC(8,6)`,
+    `ALTER TABLE milk_records ADD COLUMN IF NOT EXISTS standardised_ts    NUMERIC(8,4)`,
+    `ALTER TABLE milk_records ADD COLUMN IF NOT EXISTS ts_value           NUMERIC(8,4)`,
+    // receipts
+    `ALTER TABLE receipts ADD COLUMN IF NOT EXISTS shop_id BIGINT REFERENCES shops(id) ON DELETE SET NULL`,
+    // indexes (safe to re-run)
+    `CREATE INDEX IF NOT EXISTS idx_employees_shop  ON employees(shop_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_milk_shop       ON milk_records(shop_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_receipts_shop   ON receipts(shop_id)`,
+  ];
+  let ok = 0, fail = 0;
+  for (const sql of steps) {
+    try { await db.query(sql); ok++; }
+    catch (e) { console.error('Migration step failed:', e.message); fail++; }
+  }
+  console.log(`✅ Auto-migration done — ${ok} ok, ${fail} failed`);
+}
+
 // ── Start server ───────────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || '3000');
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🥛 Dairy ERP API  →  http://localhost:${PORT}`);
   console.log(`🌍 Env: ${process.env.NODE_ENV || 'development'}\n`);
+  runAutoMigration().catch(e => console.error('Auto-migration error:', e.message));
 });
 
 // ── Graceful shutdown ──────────────────────────────────────────────────

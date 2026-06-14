@@ -59,11 +59,10 @@ router.post('/employees',
       if (!['sales','purchase'].includes(department)) {
         return res.status(400).json({ success:false, message:'Department must be sales or purchase' });
       }
-      if (!shop_id) return res.status(400).json({ success:false, message:'Shop assignment is required' });
       if (email && !password) return res.status(400).json({ success:false, message:'Password is required when setting up portal access' });
       if (email && password && password.length < 8) return res.status(400).json({ success:false, message:'Password must be at least 8 characters' });
 
-      // Auto-assign permissions based on department — no manual override
+      // Auto-assign permissions based on department
       const autoPerms = DEPT_PERMS[department] || [];
 
       const m = await db.queryOne('SELECT COALESCE(MAX(id),0) AS m FROM employees');
