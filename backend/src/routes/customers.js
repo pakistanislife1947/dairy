@@ -258,6 +258,63 @@ router.post('/sale',
 );
 
 // ── Mark receipt as paid ─────────────────────────────────────
+// GET receipts list — filterable by date, shop (for sales staff history)
+router.get('/receipts', async (req, res, next) => {
+  try {
+    const { date_from, date_to, shop_id, limit=100 } = req.query;
+    const params = []; let pi = 1;
+    const conds = ['1=1'];
+    if (date_from) { conds.push(`receipt_date >= $${pi++}`); params.push(date_from); }
+    if (date_to)   { conds.push(`receipt_date <= $${pi++}`); params.push(date_to); }
+    if (shop_id)   { conds.push(`shop_id = $${pi++}`); params.push(shop_id); }
+    // Staff only see their own shop's receipts
+    if (req.user.role === 'staff' && req.user.shop_id && !shop_id) {
+      conds.push(`shop_id = $${pi++}`); params.push(req.user.shop_id);
+    }
+    params.push(parseInt(limit));
+    const [rows] = await db.query(
+      `SELECT id,receipt_no,customer_type,receipt_date,milk_qty,milk_amount,products_amount,total_amount,paid_amount,status,shop_id
+       FROM receipts WHERE ${conds.join(' AND ')} ORDER BY receipt_date DESC, id DESC LIMIT $${pi}`,
+      params
+    );
+    res.json({ success:true, data:rows });
+  } catch(err){next(err);}
+});
+
+// GET sales summary KPIs — for sales staff dashboard
+router.get('/sales-summary', async (req, res, next) => {
+  try {
+    const { date_from, date_to, shop_id } = req.query;
+    const effectiveShopId = req.user.role === 'staff' ? req.user.shop_id : (shop_id || null);
+    const params = [date_from, date_to]; let pi = 3;
+    let shopCond = '';
+    if (effectiveShopId) { shopCond = ` AND shop_id = $${pi++}`; params.push(effectiveShopId); }
+
+    const row = await db.queryOne(
+      `SELECT COALESCE(SUM(total_amount),0) AS total_revenue,
+              COALESCE(SUM(paid_amount),0)  AS received,
+              COALESCE(SUM(milk_qty),0)     AS sold_liters,
+              COUNT(*)                       AS total_receipts
+       FROM receipts WHERE receipt_date BETWEEN $1 AND $2${shopCond}`,
+      params
+    );
+
+    let shop_stock = 0;
+    if (effectiveShopId) {
+      const stockRow = await db.queryOne(
+        `SELECT GREATEST(0,
+           COALESCE((SELECT SUM(quantity_liters) FROM milk_records WHERE shop_id=$1),0)
+         - COALESCE((SELECT SUM(milk_qty) FROM receipts WHERE shop_id=$1 AND milk_qty > 0),0)
+         ) AS available`,
+        [effectiveShopId]
+      );
+      shop_stock = parseFloat(stockRow?.available || 0);
+    }
+
+    res.json({ success:true, data:{ ...row, shop_stock } });
+  } catch(err){next(err);}
+});
+
 router.patch('/:id/receipts/:rid/pay', adminOnly, async (req, res, next) => {
   try {
     await db.query("UPDATE receipts SET status='paid',paid_amount=total_amount WHERE id=$1", [req.params.rid]);

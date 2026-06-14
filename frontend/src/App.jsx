@@ -5,6 +5,7 @@ import useAuthStore from './store/authStore';
 
 import AdminLayout  from './components/layout/AdminLayout';
 import StaffLayout  from './components/layout/StaffLayout';
+import SalesLayout  from './components/layout/SalesLayout';
 
 import LoginPage          from './pages/auth/LoginPage';
 import RegisterPage       from './pages/auth/RegisterPage';
@@ -33,12 +34,17 @@ import WalkIn     from './pages/admin/WalkIn';
 import StaffDashboard from './pages/staff/StaffDashboard';
 import MilkEntry      from './pages/staff/MilkEntry';
 import MilkHistory    from './pages/staff/MilkHistory';
+import SalesDashboard from './pages/staff/SalesDashboard';
+import SalesEntry     from './pages/staff/SalesEntry';
+import SalesHistory   from './pages/staff/SalesHistory';
 
 function RequireAuth({ children, adminOnly = false }) {
   const { isLoggedIn, isLoading, user } = useAuthStore();
   if (isLoading) return <PageSpinner />;
   if (!isLoggedIn) return <Navigate to="/login" replace />;
-  if (adminOnly && user?.role !== 'admin') return <Navigate to="/staff" replace />;
+  if (adminOnly && user?.role !== 'admin') {
+    return <Navigate to={user?.department === 'sales' ? '/sales' : '/staff'} replace />;
+  }
   return children;
 }
 
@@ -93,11 +99,18 @@ export default function App() {
           <Route path="walkin"     element={<WalkIn />} />
         </Route>
 
-        {/* Staff */}
+        {/* Purchase staff — milk collection */}
         <Route path="/staff" element={<RequireAuth><StaffLayout /></RequireAuth>}>
           <Route index         element={<StaffDashboard />} />
           <Route path="milk"   element={<MilkEntry />} />
           <Route path="history" element={<MilkHistory />} />
+        </Route>
+
+        {/* Sales staff — walk-in sales */}
+        <Route path="/sales" element={<RequireAuth><SalesLayout /></RequireAuth>}>
+          <Route index          element={<SalesDashboard />} />
+          <Route path="entry"   element={<SalesEntry />} />
+          <Route path="history" element={<SalesHistory />} />
         </Route>
 
         <Route path="/"  element={<RootRedirect />} />
@@ -111,5 +124,7 @@ function RootRedirect() {
   const { isLoggedIn, user, isLoading } = useAuthStore();
   if (isLoading) return <PageSpinner />;
   if (!isLoggedIn) return <Navigate to="/login" replace />;
-  return <Navigate to={user?.role === 'admin' ? '/admin/dashboard' : '/staff'} replace />;
+  if (user?.role === 'admin') return <Navigate to="/admin/dashboard" replace />;
+  if (user?.department === 'sales') return <Navigate to="/sales" replace />;
+  return <Navigate to="/staff" replace />;
 }

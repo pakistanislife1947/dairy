@@ -8,7 +8,7 @@ const { computeTS, getPricingConfig } = require('../utils/pricingEngine');
 const router = express.Router();
 router.use(authenticate);
 
-const isPurchase = user => user?.role === 'staff' && user?.department === 'milk_collection';
+const isPurchase = user => user?.role === 'staff' && user?.department === 'purchase';
 
 // ── Check if migration_v2 columns exist ──────────────────────────────────────
 let _migrated = null;
