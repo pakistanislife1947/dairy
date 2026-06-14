@@ -177,10 +177,32 @@ router.get('/me', async (req, res) => {
     catch (e) { return res.status(401).json({ success: false, message: e.name === 'TokenExpiredError' ? 'Token expired.' : 'Invalid token.' }); }
 
     const user = await db.queryOne(
-      'SELECT id, name, email, role, avatar_url, email_verified, created_at FROM users WHERE id = $1 AND is_active = true',
+      `SELECT u.id, u.name, u.email, u.role, u.avatar_url, u.email_verified, u.created_at,
+              u.department, u.permissions,
+              COALESCE(e.shop_id, u.shop_id) AS shop_id,
+              s.shop_name
+       FROM users u
+       LEFT JOIN employees e ON e.user_id = u.id AND e.is_active = true
+       LEFT JOIN shops s ON s.id = COALESCE(e.shop_id, u.shop_id)
+       WHERE u.id = $1 AND u.is_active = true`,
       [payload.id]
     );
     if (!user) return res.status(401).json({ success: false, message: 'User not found.' });
+
+    // Build perms same way as auth middleware
+    const DEPT_PERMS = {
+      sales:    ['sales','customers','products','dashboard'],
+      purchase: ['milk','customers_view','dashboard'],
+    };
+    if (user.role === 'admin') {
+      user.perms = ['*'];
+    } else {
+      const deptPerms = DEPT_PERMS[user.department] || [];
+      const extraPerms = Array.isArray(user.permissions) ? user.permissions
+        : (typeof user.permissions === 'string' ? JSON.parse(user.permissions || '[]') : []);
+      user.perms = [...new Set([...deptPerms, ...extraPerms])];
+    }
+
     return res.json({ success: true, data: user });
   } catch (err) {
     console.error('[GET /me]', err.message);

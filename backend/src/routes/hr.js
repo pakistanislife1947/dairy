@@ -20,8 +20,12 @@ router.get('/employees/all', async (req, res, next) => {
   try {
     const [rows] = await db.query(
       `SELECT e.*,u.email,u.is_active AS user_active,u.department AS user_dept,u.permissions AS extra_perms,
+              s.shop_name,
          COALESCE((SELECT SUM(amount-recovered) FROM advance_salary WHERE employee_id=e.id AND status!='recovered'),0) AS pending_advance
-       FROM employees e LEFT JOIN users u ON u.id=e.user_id ORDER BY e.is_active DESC,e.name`
+       FROM employees e
+       LEFT JOIN users u ON u.id=e.user_id
+       LEFT JOIN shops s ON s.id=e.shop_id
+       ORDER BY e.is_active DESC,e.name`
     );
     res.json({ success:true, data:rows });
   } catch(err){next(err);}
@@ -34,8 +38,12 @@ router.get('/employees', async (req, res, next) => {
     const where = all ? '' : 'WHERE e.is_active=TRUE';
     const [rows] = await db.query(
       `SELECT e.*,u.email,u.is_active AS user_active,u.department AS user_dept,u.permissions AS extra_perms,
+              s.shop_name,
          COALESCE((SELECT SUM(amount-recovered) FROM advance_salary WHERE employee_id=e.id AND status!='recovered'),0) AS pending_advance
-       FROM employees e LEFT JOIN users u ON u.id=e.user_id ${where} ORDER BY e.is_active DESC,e.name`
+       FROM employees e
+       LEFT JOIN users u ON u.id=e.user_id
+       LEFT JOIN shops s ON s.id=e.shop_id
+       ${where} ORDER BY e.is_active DESC,e.name`
     );
     res.json({ success:true, data:rows });
   } catch(err){next(err);}
@@ -47,10 +55,11 @@ router.post('/employees',
   validate,
   async (req, res, next) => {
     try {
-      const { name, phone, address, designation, department='sales', base_salary, join_date, email, password } = req.body;
+      const { name, phone, address, designation, department='sales', base_salary, join_date, email, password, shop_id } = req.body;
       if (!['sales','purchase'].includes(department)) {
         return res.status(400).json({ success:false, message:'Department must be sales or purchase' });
       }
+      if (!shop_id) return res.status(400).json({ success:false, message:'Shop assignment is required' });
       if (email && !password) return res.status(400).json({ success:false, message:'Password is required when setting up portal access' });
       if (email && password && password.length < 8) return res.status(400).json({ success:false, message:'Password must be at least 8 characters' });
 
@@ -66,17 +75,17 @@ router.post('/employees',
         if (ex) return res.status(409).json({ success:false, message:'Email already in use' });
         const hash = await bcrypt.hash(password, 12);
         const [ur] = await db.query(
-          `INSERT INTO users (name,email,password_hash,role,is_active,email_verified,department,permissions)
-           VALUES ($1,$2,$3,'staff',true,true,$4,$5) RETURNING id`,
-          [name, email, hash, department, JSON.stringify(autoPerms)]
+          `INSERT INTO users (name,email,password_hash,role,is_active,email_verified,department,permissions,shop_id)
+           VALUES ($1,$2,$3,'staff',true,true,$4,$5,$6) RETURNING id`,
+          [name, email, hash, department, JSON.stringify(autoPerms), shop_id]
         );
         user_id = ur.insertId;
       }
 
       const [r] = await db.query(
-        `INSERT INTO employees (emp_code,name,phone,address,designation,department,base_salary,join_date,user_id,created_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
-        [emp_code, name, phone||null, address||null, designation||null, department, base_salary, join_date||null, user_id, req.user.id]
+        `INSERT INTO employees (emp_code,name,phone,address,designation,department,base_salary,join_date,shop_id,user_id,created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+        [emp_code, name, phone||null, address||null, designation||null, department, base_salary, join_date||null, shop_id, user_id, req.user.id]
       );
       res.status(201).json({ success:true, data:{ id:r.insertId, emp_code, user_id } });
     } catch(err){next(err);}
@@ -86,14 +95,16 @@ router.post('/employees',
 // PUT update employee
 router.put('/employees/:id', async (req, res, next) => {
   try {
-    const {name, phone, designation, department, base_salary} = req.body;
+    const {name, phone, designation, department, base_salary, shop_id} = req.body;
     const autoPerms = DEPT_PERMS[department] || [];
-    await db.query('UPDATE employees SET name=$1,phone=$2,designation=$3,department=$4,base_salary=$5 WHERE id=$6',
-      [name, phone||null, designation||null, department, base_salary, req.params.id]);
-    // Always sync permissions when department changes
     await db.query(
-      'UPDATE users SET department=$1,permissions=$2 WHERE id=(SELECT user_id FROM employees WHERE id=$3)',
-      [department, JSON.stringify(autoPerms), req.params.id]
+      'UPDATE employees SET name=$1,phone=$2,designation=$3,department=$4,base_salary=$5,shop_id=$6 WHERE id=$7',
+      [name, phone||null, designation||null, department, base_salary, shop_id||null, req.params.id]
+    );
+    // Sync permissions and shop when department/shop changes
+    await db.query(
+      'UPDATE users SET department=$1,permissions=$2,shop_id=$3 WHERE id=(SELECT user_id FROM employees WHERE id=$4)',
+      [department, JSON.stringify(autoPerms), shop_id||null, req.params.id]
     );
     res.json({success:true});
   } catch(err){next(err);}

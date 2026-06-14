@@ -35,8 +35,9 @@ export default function HRPayroll() {
   const [fireTarget, setFire] = useState(null);
   const [showFired, setShowFired] = useState(false);
   const [portalAccess, setPortalAccess] = useState(false);
+  const [shops, setShops] = useState([]);
 
-  const emptyForm = { name:'', phone:'', join_date:'', designation:'', department:'sales', base_salary:'', email:'', password:'' };
+  const emptyForm = { name:'', phone:'', join_date:'', designation:'', department:'sales', base_salary:'', email:'', password:'', shop_id:'' };
   const [form, setForm]       = useState(emptyForm);
   const [advForm, setAdvForm] = useState({ amount:'', advance_date: new Date().toISOString().slice(0,10), notes:'' });
   const [hrTab, setHrTab]     = useState('advance');
@@ -52,12 +53,12 @@ export default function HRPayroll() {
 
   useEffect(()=>{ loadEmps(); },[showFired]);
   useEffect(()=>{ if(tab==='payroll') loadPayroll(); },[tab,payMonth]);
+  useEffect(()=>{ api.get('/shops?limit=100').then(r=>setShops(r.data.data||[])); },[]);
 
   const openEdit = (e) => {
     setSel(e);
     setForm({ name:e.name, phone:e.phone||'', join_date:e.join_date?.slice(0,10)||'', designation:e.designation||'',
-      department:e.department||'other', base_salary:e.base_salary, email:'', password:'',
-      extra_permissions: e.extra_perms||[] });
+      department:e.department||'sales', base_salary:e.base_salary, email:'', password:'', shop_id: e.shop_id||'' });
     setModal('edit');
   };
 
@@ -157,7 +158,7 @@ export default function HRPayroll() {
           </div>
           <div className="card p-0 overflow-hidden">
             <table className="table-auto w-full">
-              <thead><tr><th>Code</th><th>Name</th><th>Department</th><th>Salary</th><th>Advance</th><th>Login</th><th>Actions</th></tr></thead>
+              <thead><tr><th>Code</th><th>Name</th><th>Department</th><th>Shop</th><th>Salary</th><th>Advance</th><th>Login</th><th>Actions</th></tr></thead>
               <tbody>
                 {loading ? [...Array(5)].map((_,i)=><SkeletonRow key={i} cols={7}/>) :
                  employees.length===0 ? <tr><td colSpan={7}><EmptyState icon={UserCheck} title="No employees"/></td></tr> :
@@ -169,6 +170,7 @@ export default function HRPayroll() {
                       <div className="text-xs text-slate-400">{e.designation}</div>
                     </td>
                     <td><span className={`badge text-xs ${deptColor[e.department]||'badge-gray'}`}>{DEPT_LABELS[e.department]||e.department}</span></td>
+                    <td><span className="text-xs text-slate-600">{e.shop_name || <span className="text-red-400">No shop</span>}</span></td>
                     <td><span className="font-mono text-emerald-600 font-semibold">{fmt(e.base_salary)}</span></td>
                     <td>{parseFloat(e.pending_advance)>0
                       ? <span className="text-amber-600 font-mono text-sm flex items-center gap-1"><AlertCircle size={12}/>{fmt(e.pending_advance)}</span>
@@ -238,6 +240,13 @@ export default function HRPayroll() {
               <input type="date" value={form.join_date} onChange={e=>setForm(p=>({...p,join_date:e.target.value}))} className="input"/></div>
             <div><label className="label">Designation</label>
               <input value={form.designation} onChange={e=>setForm(p=>({...p,designation:e.target.value}))} className="input" placeholder="Driver, Accountant…"/></div>
+            <div className="col-span-2"><label className="label">Assigned Shop *</label>
+              <select value={form.shop_id} onChange={e=>setForm(p=>({...p,shop_id:e.target.value}))} className="input" required>
+                <option value="">-- Select Shop --</option>
+                {shops.filter(s=>s.is_active).map(s=>(
+                  <option key={s.id} value={s.id}>{s.shop_name}{s.location ? ` — ${s.location}` : ''}</option>
+                ))}
+              </select></div>
             <div><label className="label">Base Salary (PKR) *</label>
               <input type="number" step="100" value={form.base_salary} onChange={e=>setForm(p=>({...p,base_salary:e.target.value}))} className="input font-mono" placeholder="25000"/></div>
           </div>

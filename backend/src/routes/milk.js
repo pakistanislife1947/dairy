@@ -123,8 +123,13 @@ router.post('/', async (req, res, next) => {
   try {
     const {
       farmer_id, collection_date, quantity_liters, fat_percentage,
-      lactometer_reading, snf_percentage, shop_id, notes, target_ts
+      lactometer_reading, snf_percentage, shop_id: bodyShopId, notes, target_ts
     } = req.body;
+
+    // Staff always get their assigned shop — admin can specify manually
+    const shop_id = req.user.role === 'admin'
+      ? (bodyShopId || null)
+      : (req.user.shop_id || bodyShopId || null);
 
     // Manual validation — no express-validator (old JS sends shift which was breaking)
     const fid = parseInt(farmer_id, 10);

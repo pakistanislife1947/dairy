@@ -5,11 +5,8 @@ const JWT_SECRET = process.env.JWT_SECRET || null;
 
 // Department → allowed pages map
 const DEPT_PERMS = {
-  milk_collection: ['milk','customers_view','dashboard'],
-  sales:           ['sales','customers','products','dashboard'],
-  accounts:        ['billing','reports','customers','dashboard'],
-  hr:              ['hr','expenses','dashboard'],
-  manager:         ['milk','sales','billing','customers','products','hr','expenses','reports','dashboard'],
+  sales:    ['sales','customers','products','dashboard'],
+  purchase: ['milk','customers_view','dashboard'],
 };
 
 async function authenticate(req, res, next) {
@@ -20,7 +17,13 @@ async function authenticate(req, res, next) {
   try {
     const payload = jwt.verify(token, JWT_SECRET);
     const user = await db.queryOne(
-      'SELECT u.id,u.name,u.email,u.role,u.is_active,u.department,u.permissions,e.id AS emp_id FROM users u LEFT JOIN employees e ON e.user_id=u.id WHERE u.id=$1',
+      `SELECT u.id,u.name,u.email,u.role,u.is_active,u.department,u.permissions,
+              e.id AS emp_id, COALESCE(e.shop_id, u.shop_id) AS shop_id,
+              s.shop_name
+       FROM users u
+       LEFT JOIN employees e ON e.user_id=u.id
+       LEFT JOIN shops s ON s.id = COALESCE(e.shop_id, u.shop_id)
+       WHERE u.id=$1`,
       [payload.id]
     );
     if (!user || !user.is_active)
@@ -28,10 +31,11 @@ async function authenticate(req, res, next) {
 
     // Build effective permissions
     if (user.role === 'admin') {
-      user.perms = ['*']; // all access
+      user.perms = ['*'];
     } else {
       const deptPerms = DEPT_PERMS[user.department] || [];
-      const extraPerms = user.permissions || [];
+      const extraPerms = Array.isArray(user.permissions) ? user.permissions
+        : (typeof user.permissions === 'string' ? JSON.parse(user.permissions || '[]') : []);
       user.perms = [...new Set([...deptPerms, ...extraPerms])];
     }
 
@@ -49,7 +53,6 @@ function adminOnly(req, res, next) {
   next();
 }
 
-// Check if user has a specific permission
 function requirePerm(perm) {
   return (req, res, next) => {
     if (req.user?.role === 'admin') return next();

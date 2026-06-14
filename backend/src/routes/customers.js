@@ -160,8 +160,13 @@ router.post('/sale',
   validate,
   async (req, res, next) => {
     try {
-      const { customer_id, customer_type, sale_date, milk_qty=0, milk_rate=0, items=[], notes, shop_id } = req.body;
+      const { customer_id, customer_type, sale_date, milk_qty=0, milk_rate=0, items=[], notes, shop_id: bodyShopId } = req.body;
       if (customer_type==='cash' && !customer_id) return res.status(400).json({ success:false, message:'Customer required for cash sale' });
+
+      // Staff always use their assigned shop
+      const shop_id = req.user.role === 'admin'
+        ? (bodyShopId || null)
+        : (req.user.shop_id || bodyShopId || null);
 
       const milkQtyNum = parseFloat(milk_qty) || 0;
 

@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { Milk, Calculator, RefreshCw, AlertCircle, ChevronDown, Clock } from 'lucide-react';
+import { Milk, Calculator, RefreshCw, AlertCircle, ChevronDown, Clock, Store } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import api from '../../api/client';
+import useAuthStore from '../../store/authStore';
 
 const todayStr = () => format(new Date(), 'yyyy-MM-dd');
 
@@ -51,6 +52,9 @@ function ResultCard({ result, onClose }) {
 }
 
 export default function MilkEntry() {
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'admin';
+
   const [centres,  setCentres]  = useState([]);
   const [shops,    setShops]    = useState([]);
   const [form,     setForm]     = useState(emptyForm());
@@ -63,7 +67,11 @@ export default function MilkEntry() {
 
   useEffect(() => {
     api.get('/farmers?limit=200&active=1').then(r => setCentres(r.data.data || []));
-    api.get('/shops?limit=100').then(r => setShops(r.data.data || []));
+    if (isAdmin) api.get('/shops?limit=100').then(r => setShops(r.data.data || []));
+    // Auto-set staff's assigned shop
+    if (!isAdmin && user?.shop_id) {
+      setForm(p => ({ ...p, shop_id: String(user.shop_id) }));
+    }
   }, []);
 
   const set = key => e => setForm(p => ({ ...p, [key]: e.target.value }));
@@ -270,15 +278,24 @@ export default function MilkEntry() {
 
         {/* Drop to Shop */}
         <div>
-          <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Drop to Shop</label>
-          <div className="relative">
-            <select value={form.shop_id} onChange={set('shop_id')}
-              className={`${inputBase} py-3.5 text-sm appearance-none pr-10 bg-white border-slate-200`}>
-              <option value="">Select shop…</option>
-              {shops.map(s => <option key={s.id} value={s.id}>{s.shop_name}</option>)}
-            </select>
-            <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
-          </div>
+          <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+            <Store size={12} className="inline mr-1"/>Shop
+          </label>
+          {isAdmin ? (
+            <div className="relative">
+              <select value={form.shop_id} onChange={set('shop_id')}
+                className={`${inputBase} py-3.5 text-sm appearance-none pr-10 bg-white border-slate-200`}>
+                <option value="">Select shop…</option>
+                {shops.map(s => <option key={s.id} value={s.id}>{s.shop_name}</option>)}
+              </select>
+              <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
+            </div>
+          ) : (
+            <div className={`${inputBase} py-3.5 text-sm bg-slate-50 border-slate-200 flex items-center gap-2 text-slate-600`}>
+              <Store size={14} className="text-emerald-500"/>
+              {user?.shop_name || 'No shop assigned'}
+            </div>
+          )}
         </div>
 
         {/* Notes */}

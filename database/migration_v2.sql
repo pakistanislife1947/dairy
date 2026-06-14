@@ -52,3 +52,13 @@ CREATE INDEX IF NOT EXISTS idx_receipts_shop ON receipts(shop_id);
 ALTER TABLE users
   ADD COLUMN IF NOT EXISTS department   VARCHAR(50)  DEFAULT 'sales',
   ADD COLUMN IF NOT EXISTS permissions  JSONB        DEFAULT '[]'::jsonb;
+
+-- Add shop_id to employees — every employee belongs to one shop
+ALTER TABLE employees
+  ADD COLUMN IF NOT EXISTS shop_id BIGINT REFERENCES shops(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_employees_shop ON employees(shop_id);
+
+-- Also store shop_id on users table for fast JWT-less lookups
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS shop_id BIGINT REFERENCES shops(id) ON DELETE SET NULL;

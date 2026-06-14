@@ -3,10 +3,13 @@ import { ShoppingBag, Plus, Minus, Printer, Milk, Package, Store, AlertTriangle 
 import toast from 'react-hot-toast';
 import api from '../../api/client';
 import { PageHeader } from '../../components/ui';
+import useAuthStore from '../../store/authStore';
 
 const fmt = n => `Rs ${Number(n||0).toLocaleString('en-PK',{maximumFractionDigits:0})}`;
 
 export default function WalkIn() {
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'admin';
   const [products, setProducts] = useState([]);
   const [shops, setShops]       = useState([]);
   const [shopId, setShopId]     = useState('');
@@ -19,7 +22,11 @@ export default function WalkIn() {
 
   useEffect(()=>{
     api.get('/products').then(r=>setProducts(r.data.data||[]));
-    api.get('/shops').then(r=>setShops(r.data.data||[]));
+    if (isAdmin) {
+      api.get('/shops').then(r=>setShops(r.data.data||[]));
+    } else if (user?.shop_id) {
+      setShopId(String(user.shop_id));
+    }
   },[]);
 
   // Load shop stock whenever shop changes
@@ -96,6 +103,13 @@ export default function WalkIn() {
             <option key={s.id} value={s.id}>{s.shop_name}{s.location ? ` — ${s.location}` : ''}</option>
           ))}
         </select>
+        {!isAdmin && user?.shop_name && (
+          <div className="mt-2 flex items-center gap-2 text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+            <Store size={14} className="text-emerald-500"/>
+            <span className="font-medium">{user.shop_name}</span>
+            <span className="text-xs text-slate-400">(your assigned shop)</span>
+          </div>
+        )}
         {shopId && shopStock !== null && shopStock <= 0 && (
           <p className="mt-2 text-xs text-red-500 flex items-center gap-1"><AlertTriangle size={12}/>No milk in stock for this shop. Cannot sell milk.</p>
         )}
