@@ -5,7 +5,25 @@ const db       = require('../config/db');
 const { validate }              = require('../middleware/validate');
 const { authenticate, adminOnly } = require('../middleware/auth');
 
-router.use(authenticate, adminOnly);
+// POST /hr/migrate — force run auto-migration (admin only)
+router.post('/migrate', authenticate, adminOnly, async (req, res) => {
+  const steps = [
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS department  VARCHAR(50)  DEFAULT 'sales'`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions JSONB        DEFAULT '[]'::jsonb`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS shop_id     BIGINT       REFERENCES shops(id) ON DELETE SET NULL`,
+    `ALTER TABLE employees ADD COLUMN IF NOT EXISTS shop_id BIGINT REFERENCES shops(id) ON DELETE SET NULL`,
+    `ALTER TABLE milk_records ADD COLUMN IF NOT EXISTS shop_id BIGINT REFERENCES shops(id) ON DELETE SET NULL`,
+    `ALTER TABLE receipts ADD COLUMN IF NOT EXISTS shop_id  BIGINT REFERENCES shops(id) ON DELETE SET NULL`,
+    `CREATE INDEX IF NOT EXISTS idx_employees_shop ON employees(shop_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_receipts_shop  ON receipts(shop_id)`,
+  ];
+  const results = [];
+  for (const sql of steps) {
+    try { await db.query(sql); results.push({ ok: true, sql: sql.slice(0, 60) }); }
+    catch (e) { results.push({ ok: false, sql: sql.slice(0, 60), err: e.message }); }
+  }
+  res.json({ success: true, results });
+});
 
 const DEPTS = ['sales','purchase'];
 const DEPT_PERMS = {

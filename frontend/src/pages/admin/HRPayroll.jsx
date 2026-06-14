@@ -44,7 +44,16 @@ export default function HRPayroll() {
   const [retForm, setRetForm] = useState({ amount:'', return_date: new Date().toISOString().slice(0,10), notes:'' });
   const [adjForm, setAdjForm] = useState({ type:'bonus', amount:'', apply_month: new Date().toISOString().slice(0,7), reason:'' });
 
-  const loadEmps = () => {
+  const runMigration = async () => {
+    try {
+      const r = await api.post('/hr/migrate');
+      const failed = r.data.results.filter(x => !x.ok);
+      if (failed.length === 0) toast.success('DB migration complete — all columns ready');
+      else toast.error(`Migration: ${failed.length} steps failed — check console`);
+      console.log('Migration results:', r.data.results);
+      loadEmps();
+    } catch (err) { toast.error('Migration failed: ' + (err.response?.data?.message || err.message)); }
+  };
     setLoading(true);
     const endpoint = showFired ? '/hr/employees/all' : '/hr/employees';
     api.get(endpoint).then(r=>setEmps(r.data.data||[])).finally(()=>setLoading(false));
@@ -58,7 +67,9 @@ export default function HRPayroll() {
   const openEdit = (e) => {
     setSel(e);
     setForm({ name:e.name, phone:e.phone||'', join_date:e.join_date?.slice(0,10)||'', designation:e.designation||'',
-      department:e.department||'sales', base_salary:e.base_salary, email:'', password:'', shop_id: e.shop_id||'' });
+      department:e.department||'sales', base_salary:e.base_salary, email:'', password:'',
+      shop_id: e.shop_id ? String(e.shop_id) : '' });
+    setPortalAccess(false);
     setModal('edit');
   };
 
@@ -142,7 +153,7 @@ export default function HRPayroll() {
   return (
     <div className="space-y-6">
       <PageHeader title="HR & Payroll" subtitle="Team management with role-based access"
-        action={<button onClick={()=>{ setModal('add'); setForm(emptyForm); }} className="btn-primary"><Plus size={16}/>Add Employee</button>}/>
+        action={<div className="flex gap-2"><button onClick={runMigration} className="btn-ghost text-xs text-slate-400 border border-slate-200 px-3 py-1.5 rounded-xl hover:text-slate-600">⚙ Fix DB</button><button onClick={()=>{ setModal('add'); setForm(emptyForm); }} className="btn-primary"><Plus size={16}/>Add Employee</button></div>}/>
 
       <div className="flex gap-1 bg-white border border-[#d1dce8] rounded-xl p-1 w-fit">
         {TABS.map(({id,label,icon:Icon})=>(
@@ -248,8 +259,8 @@ export default function HRPayroll() {
             <div className="col-span-2"><label className="label">Assigned Shop *</label>
               <select value={form.shop_id} onChange={e=>setForm(p=>({...p,shop_id:e.target.value}))} className="input">
                 <option value="">-- Select Shop --</option>
-                {shops.filter(s=>s.is_active).map(s=>(
-                  <option key={s.id} value={s.id}>{s.shop_name}{s.location ? ` — ${s.location}` : ''}</option>
+                {shops.filter(s=>s.is_active!==false).map(s=>(
+                  <option key={s.id} value={String(s.id)}>{s.shop_name}{s.location ? ` — ${s.location}` : ''}</option>
                 ))}
               </select></div>
             <div><label className="label">Base Salary (PKR) *</label>
