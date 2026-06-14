@@ -3,7 +3,7 @@ services:
     name: dairy-erp-backend
     runtime: node
     rootDir: backend
-    buildCommand: npm install
+    buildCommand: npm install && node migrate.js
     startCommand: npm start
     envVars:
       - key: NODE_ENV
