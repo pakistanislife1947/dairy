@@ -2,6 +2,15 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import api from '../api/client';
 
+// Derive department from perms array as fallback
+const deriveDept = (user) => {
+  if (user.department) return user.department;
+  const p = user.perms || user.permissions || [];
+  if (p.includes('milk')) return 'purchase';
+  if (p.includes('sales')) return 'sales';
+  return null;
+};
+
 const useAuthStore = create(persist(
   (set, get) => ({
     user: null,
@@ -12,11 +21,12 @@ const useAuthStore = create(persist(
     perms: [],
 
     login: (user, token, refreshToken) => {
+      const dept = deriveDept(user);
+      const enriched = { ...user, department: dept };
       const perms = user.role === 'admin' ? ['*'] : (user.perms || []);
-      // Use SAME keys as api/client.js
       localStorage.setItem('accessToken', token);
       if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
-      set({ user, token, refreshToken, isLoggedIn: true, isLoading: false, perms });
+      set({ user: enriched, token, refreshToken, isLoggedIn: true, isLoading: false, perms });
     },
 
     logout: async () => {
@@ -32,14 +42,17 @@ const useAuthStore = create(persist(
       try {
         const { data } = await api.get('/auth/me');
         if (data.success) {
-          const perms = data.data.role === 'admin' ? ['*'] : (data.data.perms || []);
-          set({ user: data.data, token, isLoggedIn: true, isLoading: false, perms });
+          const u = data.data;
+          const dept = deriveDept(u);
+          const enriched = { ...u, department: dept };
+          const perms = u.role === 'admin' ? ['*'] : (u.perms || []);
+          // Always update from server — never trust stale localStorage cache for routing
+          set({ user: enriched, token, isLoggedIn: true, isLoading: false, perms });
         } else {
           localStorage.removeItem('accessToken');
           set({ isLoading: false });
         }
       } catch {
-        // Token invalid — clear silently, don't redirect here
         localStorage.removeItem('accessToken');
         set({ isLoading: false });
       }
@@ -52,7 +65,8 @@ const useAuthStore = create(persist(
   }),
   {
     name: 'dairy-auth',
-    partialize: s => ({ token: s.token, refreshToken: s.refreshToken, user: s.user }),
+    // Only persist token — never persist user object (stale dept/shop causes wrong routing)
+    partialize: s => ({ token: s.token, refreshToken: s.refreshToken }),
   }
 ));
 

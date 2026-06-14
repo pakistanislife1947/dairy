@@ -19,7 +19,24 @@ function makeRefreshToken(user, rememberMe = false) {
   if (!REFRESH_SECRET) throw new Error('REFRESH_TOKEN_SECRET not set');
   return jwt.sign({ id: user.id, type: 'refresh' }, REFRESH_SECRET, { expiresIn: rememberMe ? REFRESH_LONG : REFRESH_EXPIRES });
 }
-const safeUser = (u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, avatar_url: u.avatar_url || null });
+const DEPT_PERMS_LOGIN = {
+  sales:    ['sales','customers','products','dashboard'],
+  purchase: ['milk','customers_view','dashboard'],
+};
+const safeUser = (u) => {
+  const deptPerms = DEPT_PERMS_LOGIN[u.department] || [];
+  const extraPerms = Array.isArray(u.permissions) ? u.permissions
+    : (typeof u.permissions === 'string' ? JSON.parse(u.permissions || '[]') : []);
+  const perms = u.role === 'admin' ? ['*'] : [...new Set([...deptPerms, ...extraPerms])];
+  return {
+    id: u.id, name: u.name, email: u.email, role: u.role,
+    avatar_url: u.avatar_url || null,
+    department: u.department || null,
+    shop_id:    u.shop_id    || null,
+    shop_name:  u.shop_name  || null,
+    perms,
+  };
+};
 
 const validate = (req, res, next) => {
   const errors = validationResult(req);
@@ -75,8 +92,14 @@ router.post('/login',
     try {
       const { email, password, rememberMe = false } = req.body;
       const user = await db.queryOne(
-        `SELECT id, name, email, password_hash, role, avatar_url, is_active, email_verified, refresh_token_hash
-         FROM users WHERE email = $1`,
+        `SELECT u.id, u.name, u.email, u.password_hash, u.role, u.avatar_url, u.is_active,
+                u.email_verified, u.refresh_token_hash, u.department, u.permissions,
+                COALESCE(e.shop_id, u.shop_id) AS shop_id,
+                s.shop_name
+         FROM users u
+         LEFT JOIN employees e ON e.user_id = u.id AND e.is_active = true
+         LEFT JOIN shops s ON s.id = COALESCE(e.shop_id, u.shop_id)
+         WHERE u.email = $1`,
         [email]
       );
 
